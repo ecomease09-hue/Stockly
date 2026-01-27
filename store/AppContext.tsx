@@ -1,17 +1,6 @@
 
 import React, { createContext, useContext, useState, useEffect } from 'react';
-import { Product, Customer, Invoice, LedgerEntry, Payment, PaymentReminder } from '../types';
-
-interface User {
-  id: string;
-  name: string;
-  email: string;
-  shopName: string;
-  logoUrl?: string;
-  address?: string;
-  phone?: string;
-  nextInvoiceNumber: number;
-}
+import { Product, Customer, Invoice, LedgerEntry, Payment, PaymentReminder, User } from '../types';
 
 interface AppContextType {
   user: User | null;
@@ -48,14 +37,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [payments, setPayments] = useState<Payment[]>([]);
   const [reminders, setReminders] = useState<PaymentReminder[]>([]);
 
-  // Check for existing session
   useEffect(() => {
     const savedUser = localStorage.getItem('inventory_user');
     if (savedUser) {
       setUser(JSON.parse(savedUser));
     }
     
-    // Load initial demo data
     const demoProducts: Product[] = [
       { id: '1', name: 'Premium Rice 5kg', sku: 'RICE-001', purchasePrice: 400, salePrice: 550, stockQuantity: 50, lowStockThreshold: 10 },
       { id: '2', name: 'Cooking Oil 1L', sku: 'OIL-102', purchasePrice: 150, salePrice: 185, stockQuantity: 8, lowStockThreshold: 10 },
@@ -70,28 +57,30 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   }, []);
 
   const login = async (email: string, password: string) => {
-    const mockUser = { 
+    const mockUser: User = { 
       id: 'u1', 
       name: 'Admin User', 
       email, 
       shopName: 'My Premium Shop',
       address: 'Building 40, Street 5, Blue Area, Islamabad',
       phone: '+92 300 1234567',
-      nextInvoiceNumber: 1
+      nextInvoiceNumber: 1,
+      invoicePrefix: 'INV'
     };
     setUser(mockUser);
     localStorage.setItem('inventory_user', JSON.stringify(mockUser));
   };
 
   const signup = async (name: string, email: string, shopName: string, password: string) => {
-    const mockUser = { 
+    const mockUser: User = { 
       id: 'u1', 
       name, 
       email, 
       shopName,
       address: '',
       phone: '',
-      nextInvoiceNumber: 1
+      nextInvoiceNumber: 1,
+      invoicePrefix: 'INV'
     };
     setUser(mockUser);
     localStorage.setItem('inventory_user', JSON.stringify(mockUser));
@@ -128,46 +117,62 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const createInvoice = (inv: Omit<Invoice, 'id' | 'invoiceNumber'>): Invoice => {
-    const currentSeq = user?.nextInvoiceNumber || 1;
-    const invoiceNumber = `INV-${currentSeq.toString().padStart(5, '0')}`;
-    const invoiceId = Math.random().toString(36).substr(2, 9);
+    let currentSeq = user?.nextInvoiceNumber || 1;
+    const prefix = user?.invoicePrefix || 'INV';
     
+    let invoiceNumber = `${prefix}-${currentSeq.toString().padStart(5, '0')}`;
+    while (invoices.some(i => i.invoiceNumber === invoiceNumber)) {
+      currentSeq++;
+      invoiceNumber = `${prefix}-${currentSeq.toString().padStart(5, '0')}`;
+    }
+
+    const invoiceId = Math.random().toString(36).substr(2, 9);
     const newInvoice: Invoice = { 
       ...inv, 
       id: invoiceId, 
       invoiceNumber 
     };
 
-    setInvoices(prev => [...prev, newInvoice]);
-
-    setProducts(prev => prev.map(prod => {
-      const lineItem = newInvoice.items.find(item => item.productId === prod.id);
-      if (lineItem) {
-        return { ...prod, stockQuantity: prod.stockQuantity - lineItem.quantity };
+    // CRITICAL: Mandatory Inventory Reduction
+    // We iterate through all products and subtract the quantity sold in the invoice
+    setProducts(prevProducts => prevProducts.map(prod => {
+      const soldItem = newInvoice.items.find(item => item.productId === prod.id);
+      if (soldItem) {
+        // Subtract quantity and ensure it doesn't drop below zero
+        return { 
+          ...prod, 
+          stockQuantity: Math.max(0, prod.stockQuantity - soldItem.quantity) 
+        };
       }
       return prod;
     }));
 
-    if (newInvoice.paymentType === 'credit') {
-      const currentOutstanding = customers.find(c => c.id === newInvoice.customerId)?.totalOutstanding || 0;
-      const newEntry: LedgerEntry = {
-        id: Math.random().toString(36).substr(2, 9),
-        customerId: newInvoice.customerId,
-        date: newInvoice.date,
-        refId: invoiceId,
-        type: 'invoice',
-        description: `Invoice ${invoiceNumber}`,
-        debit: newInvoice.total,
-        credit: 0,
-        balance: currentOutstanding + newInvoice.total
-      };
-      setLedger(prev => [...prev, newEntry]);
-      setCustomers(prev => prev.map(c => c.id === newInvoice.customerId ? { ...c, totalOutstanding: c.totalOutstanding + newInvoice.total } : c));
-    }
+    // Record the invoice in history
+    setInvoices(prev => [...prev, newInvoice]);
 
-    // Increment and save the sequence
+    // Update Customer Outstanding & Ledger
+    const netDebt = newInvoice.total - newInvoice.paidAmount;
+    const currentCustomer = customers.find(c => c.id === newInvoice.customerId);
+    const currentOutstanding = currentCustomer?.totalOutstanding || 0;
+    
+    const newEntry: LedgerEntry = {
+      id: Math.random().toString(36).substr(2, 9),
+      customerId: newInvoice.customerId,
+      date: newInvoice.date,
+      refId: invoiceId,
+      type: 'invoice',
+      description: `Invoice ${invoiceNumber}${newInvoice.paidAmount > 0 ? ` (Partial Rs. ${newInvoice.paidAmount})` : ''}`,
+      debit: newInvoice.total,
+      credit: newInvoice.paidAmount,
+      balance: currentOutstanding + netDebt
+    };
+    
+    setLedger(prev => [...prev, newEntry]);
+    setCustomers(prev => prev.map(c => 
+      c.id === newInvoice.customerId ? { ...c, totalOutstanding: c.totalOutstanding + netDebt } : c
+    ));
+
     updateUser({ nextInvoiceNumber: currentSeq + 1 });
-
     return newInvoice;
   };
 
@@ -176,7 +181,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const newPayment: Payment = { ...pay, id: paymentId };
     setPayments(prev => [...prev, newPayment]);
 
-    const currentOutstanding = customers.find(c => c.id === newPayment.customerId)?.totalOutstanding || 0;
+    const currentCustomer = customers.find(c => c.id === newPayment.customerId);
+    const currentOutstanding = currentCustomer?.totalOutstanding || 0;
+    
     const newEntry: LedgerEntry = {
       id: Math.random().toString(36).substr(2, 9),
       customerId: newPayment.customerId,
@@ -188,8 +195,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       credit: newPayment.amount,
       balance: currentOutstanding - newPayment.amount
     };
+    
     setLedger(prev => [...prev, newEntry]);
-    setCustomers(prev => prev.map(c => c.id === newPayment.customerId ? { ...c, totalOutstanding: c.totalOutstanding - newPayment.amount } : c));
+    setCustomers(prev => prev.map(c => 
+      c.id === newPayment.customerId ? { ...c, totalOutstanding: c.totalOutstanding - newPayment.amount } : c
+    ));
   };
 
   const addReminder = (r: Omit<PaymentReminder, 'id' | 'status' | 'createdAt'>) => {

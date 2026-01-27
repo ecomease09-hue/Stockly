@@ -1,6 +1,7 @@
 
 import React, { useRef } from 'react';
 import { useApp } from '../store/AppContext';
+import { useNavigate } from 'react-router-dom';
 import { 
   TrendingUp, 
   AlertTriangle, 
@@ -12,7 +13,9 @@ import {
   Building2,
   MapPin,
   Phone,
-  Hash
+  Hash,
+  ChevronRight,
+  ArrowRight
 } from 'lucide-react';
 import { 
   AreaChart, 
@@ -27,6 +30,7 @@ import {
 const Dashboard: React.FC = () => {
   const { products, customers, invoices, user, updateUser } = useApp();
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const navigate = useNavigate();
 
   // Calculations
   const totalSales = invoices.reduce((sum, inv) => sum + inv.total, 0);
@@ -38,7 +42,8 @@ const Dashboard: React.FC = () => {
   }, 0);
   const totalProfit = totalSales - totalPurchaseCost;
   
-  const lowStockCount = products.filter(p => p.stockQuantity <= p.lowStockThreshold).length;
+  const lowStockProducts = products.filter(p => p.stockQuantity <= p.lowStockThreshold);
+  const lowStockCount = lowStockProducts.length;
   const totalCustomers = customers.length;
 
   const handleLogoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -131,10 +136,22 @@ const Dashboard: React.FC = () => {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Sales Chart */}
         <div className="lg:col-span-2 bg-white p-6 rounded-xl border shadow-sm">
-          <h3 className="text-lg font-semibold mb-6 flex items-center gap-2">
-            <TrendingUp className="w-5 h-5 text-blue-500" />
-            Revenue vs Profit
-          </h3>
+          <div className="flex items-center justify-between mb-6">
+            <h3 className="text-lg font-semibold flex items-center gap-2">
+              <TrendingUp className="w-5 h-5 text-blue-500" />
+              Revenue vs Profit
+            </h3>
+            <div className="flex gap-4">
+              <div className="flex items-center gap-2">
+                <div className="w-3 h-3 rounded-full bg-blue-500"></div>
+                <span className="text-xs text-slate-500 font-medium">Sales</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <div className="w-3 h-3 rounded-full bg-emerald-500"></div>
+                <span className="text-xs text-slate-500 font-medium">Profit</span>
+              </div>
+            </div>
+          </div>
           <div className="h-72 w-full">
             <ResponsiveContainer width="100%" height="100%">
               <AreaChart data={data}>
@@ -244,29 +261,55 @@ const Dashboard: React.FC = () => {
           </div>
 
           <div className="bg-white p-6 rounded-xl border shadow-sm">
-            <h3 className="text-lg font-semibold mb-6 flex items-center gap-2">
-              <AlertTriangle className="w-5 h-5 text-rose-500" />
-              Stock Alerts
-            </h3>
-            <div className="space-y-4">
-              {products.filter(p => p.stockQuantity <= p.lowStockThreshold).length === 0 ? (
-                <div className="text-center py-4">
-                  <p className="text-slate-500 text-sm">All products in stock.</p>
+            <div className="flex items-center justify-between mb-6">
+              <h3 className="text-lg font-semibold flex items-center gap-2">
+                <AlertTriangle className="w-5 h-5 text-rose-500" />
+                Stock Alerts
+              </h3>
+              {lowStockCount > 0 && (
+                <span className="bg-rose-100 text-rose-700 text-[10px] font-black px-2 py-1 rounded-full uppercase tracking-tighter">
+                  {lowStockCount} Issues
+                </span>
+              )}
+            </div>
+            
+            <div className="space-y-3 max-h-[320px] overflow-y-auto pr-1 custom-scrollbar">
+              {lowStockProducts.length === 0 ? (
+                <div className="text-center py-12 bg-slate-50 rounded-2xl border-2 border-dashed">
+                  <p className="text-slate-400 text-sm font-medium">All inventory levels optimal.</p>
                 </div>
               ) : (
-                products.filter(p => p.stockQuantity <= p.lowStockThreshold).slice(0, 3).map(prod => (
-                  <div key={prod.id} className="flex items-center justify-between p-3 rounded-xl bg-slate-50 border border-slate-100">
-                    <div>
-                      <p className="text-sm font-bold text-slate-800">{prod.name}</p>
-                      <p className="text-[10px] text-slate-400">SKU: {prod.sku}</p>
+                lowStockProducts.map(prod => (
+                  <div 
+                    key={prod.id} 
+                    onClick={() => navigate('/inventory')}
+                    className="flex items-center justify-between p-4 rounded-2xl bg-white border border-slate-100 hover:border-rose-200 hover:shadow-md transition-all cursor-pointer group"
+                  >
+                    <div className="min-w-0">
+                      <p className="text-sm font-black text-slate-900 truncate group-hover:text-rose-600 transition-colors">{prod.name}</p>
+                      <div className="flex items-center gap-2 mt-1">
+                        <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">SKU: {prod.sku}</span>
+                      </div>
                     </div>
-                    <div className="text-right">
-                      <p className="text-xs font-black text-rose-600">{prod.stockQuantity} left</p>
+                    <div className="text-right flex-shrink-0">
+                      <p className={`text-sm font-black ${prod.stockQuantity <= 0 ? 'text-rose-600 animate-pulse' : 'text-amber-600'}`}>
+                        {prod.stockQuantity} in stock
+                      </p>
+                      <p className="text-[9px] font-bold text-slate-300 uppercase tracking-tighter">Limit: {prod.lowStockThreshold}</p>
                     </div>
                   </div>
                 ))
               )}
             </div>
+
+            {lowStockCount > 0 && (
+              <button 
+                onClick={() => navigate('/inventory')}
+                className="w-full mt-4 py-3 bg-slate-50 text-slate-600 rounded-xl text-xs font-black uppercase tracking-widest flex items-center justify-center gap-2 hover:bg-slate-100 transition-all border border-slate-100"
+              >
+                Manage Inventory <ArrowRight className="w-4 h-4" />
+              </button>
+            )}
           </div>
         </div>
       </div>

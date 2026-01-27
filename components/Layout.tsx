@@ -11,7 +11,8 @@ import {
   BarChart3, 
   Menu, 
   X,
-  LogOut
+  LogOut,
+  UserCircle
 } from 'lucide-react';
 
 const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
@@ -31,6 +32,7 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
     { to: '/customers', icon: Users, label: 'Customers' },
     { to: '/ledger', icon: BookOpenText, label: 'Ledger' },
     { to: '/reports', icon: BarChart3, label: 'Reports' },
+    { to: '/profile', icon: UserCircle, label: 'Settings' },
   ];
 
   return (

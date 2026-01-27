@@ -9,21 +9,106 @@
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <style>
         body { font-family: 'Inter', sans-serif; }
+        
+        /* Print Optimization */
         @media print {
+            /* Hide all UI elements except the invoice */
             .no-print { display: none !important; }
             .print-only { display: block !important; }
-            body { background: white !important; padding: 0 !important; margin: 0 !important; }
-            @page { margin: 1cm; }
+            
+            /* Reset body styles for paper */
+            body { 
+                background: white !important; 
+                padding: 0 !important; 
+                margin: 0 !important; 
+                -webkit-print-color-adjust: exact !important;
+                print-color-adjust: exact !important;
+            }
+            
+            /* Configure page margins */
+            @page { 
+                margin: 0.5cm; 
+                size: auto;
+            }
+
+            /* Ensure the modal is the only visible thing and takes full width */
+            #root > div > main {
+                padding: 0 !important;
+                margin: 0 !important;
+            }
+
+            .fixed.inset-0 {
+                position: static !important;
+                background: white !important;
+                padding: 0 !important;
+                overflow: visible !important;
+            }
+
             .invoice-container { 
                 border: none !important; 
                 box-shadow: none !important; 
                 width: 100% !important;
                 max-width: none !important;
                 margin: 0 !important;
-                padding: 0 !important;
+                padding: 1.5cm !important;
+                min-height: auto !important;
+                background: white !important;
+            }
+
+            /* Force display of backgrounds/colors */
+            .bg-slate-900 { background-color: #0f172a !important; color: white !important; }
+            .bg-blue-600 { background-color: #2563eb !important; color: white !important; }
+            .bg-emerald-500 { background-color: #10b981 !important; color: white !important; }
+            .bg-rose-500 { background-color: #f43f5e !important; color: white !important; }
+            .bg-amber-50 { background-color: #fffbeb !important; }
+            .bg-slate-50 { background-color: #f8fafc !important; }
+
+            /* Ensure logos print clearly */
+            img { 
+                max-width: 100%; 
+                height: auto; 
+                print-color-adjust: exact;
+            }
+
+            /* Remove rounded corners and extra shadows for professional look on paper */
+            .md\:rounded-\[4rem\], .rounded-\[3rem\], .rounded-\[2\.5rem\], .rounded-\[2rem\] {
+                border-radius: 0 !important;
+            }
+            
+            .shadow-2xl, .shadow-3xl, .shadow-xl, .shadow-sm {
+                box-shadow: none !important;
             }
         }
+
         .print-only { display: none; }
+
+        @keyframes toast-in {
+            from { transform: translateY(100%) translateX(-50%); opacity: 0; }
+            to { transform: translateY(0) translateX(-50%); opacity: 1; }
+        }
+        .animate-toast {
+            animation: toast-in 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+        }
+        
+        @keyframes item-pop {
+            0% { transform: scale(0.95); opacity: 0; }
+            50% { transform: scale(1.05); }
+            100% { transform: scale(1); opacity: 1; }
+        }
+        .animate-item-pop {
+            animation: item-pop 0.3s ease-out forwards;
+        }
+
+        .custom-scrollbar::-webkit-scrollbar {
+            width: 4px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-track {
+            background: transparent;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb {
+            background: #e2e8f0;
+            border-radius: 10px;
+        }
     </style>
 <script type="importmap">
 {

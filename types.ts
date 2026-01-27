@@ -1,4 +1,16 @@
 
+export interface User {
+  id: string;
+  name: string;
+  email: string;
+  shopName: string;
+  logoUrl?: string;
+  address?: string;
+  phone?: string;
+  nextInvoiceNumber: number;
+  invoicePrefix: string;
+}
+
 export interface Product {
   id: string;
   name: string;
@@ -38,7 +50,9 @@ export interface Invoice {
   tax: number;
   discount: number;
   total: number;
+  paidAmount: number;
   paymentType: PaymentType;
+  notes?: string;
 }
 
 export type LedgerEntryType = 'invoice' | 'payment';
