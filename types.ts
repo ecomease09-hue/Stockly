@@ -9,6 +9,18 @@ export interface User {
   phone?: string;
   nextInvoiceNumber: number;
   invoicePrefix: string;
+  primaryColor?: string;
+}
+
+export type StockMovementType = 'in' | 'out';
+
+export interface StockMovement {
+  id: string;
+  type: StockMovementType;
+  quantity: number;
+  date: string;
+  reason: string; // e.g., 'Initial Stock', 'Sale', 'Restock', 'Correction'
+  referenceId?: string; // e.g., Invoice ID
 }
 
 export interface Product {
@@ -19,6 +31,8 @@ export interface Product {
   salePrice: number;
   stockQuantity: number;
   lowStockThreshold: number;
+  movements: StockMovement[]; // Track history of stock changes
+  createdAt: string;
 }
 
 export interface Customer {
@@ -33,6 +47,7 @@ export interface InvoiceItem {
   productId: string;
   productName: string;
   quantity: number;
+  purchasePrice: number; 
   salePrice: number;
   total: number;
 }
@@ -61,12 +76,12 @@ export interface LedgerEntry {
   id: string;
   customerId: string;
   date: string;
-  refId: string; // InvoiceId or PaymentId
+  refId: string; 
   type: LedgerEntryType;
   description: string;
-  debit: number; // Charges
-  credit: number; // Payments
-  balance: number; // Running balance
+  debit: number; 
+  credit: number; 
+  balance: number; 
 }
 
 export interface Payment {

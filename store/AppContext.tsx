@@ -1,6 +1,6 @@
 
 import React, { createContext, useContext, useState, useEffect } from 'react';
-import { Product, Customer, Invoice, LedgerEntry, Payment, PaymentReminder, User } from '../types';
+import { Product, Customer, Invoice, LedgerEntry, Payment, PaymentReminder, User, StockMovement } from '../types';
 
 interface AppContextType {
   user: User | null;
@@ -15,8 +15,8 @@ interface AppContextType {
   signup: (name: string, email: string, shopName: string, password: string) => Promise<void>;
   logout: () => void;
   updateUser: (updates: Partial<User>) => void;
-  addProduct: (product: Omit<Product, 'id'>) => void;
-  updateProduct: (product: Product) => void;
+  addProduct: (product: Omit<Product, 'id' | 'movements' | 'createdAt'>) => void;
+  updateProduct: (product: Product, movementReason?: string) => void;
   deleteProduct: (id: string) => void;
   addCustomer: (customer: Omit<Customer, 'id' | 'totalOutstanding'>) => void;
   createInvoice: (invoice: Omit<Invoice, 'id' | 'invoiceNumber'>) => Invoice;
@@ -43,17 +43,44 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       setUser(JSON.parse(savedUser));
     }
     
+    const now = new Date().toISOString();
     const demoProducts: Product[] = [
-      { id: '1', name: 'Premium Rice 5kg', sku: 'RICE-001', purchasePrice: 400, salePrice: 550, stockQuantity: 50, lowStockThreshold: 10 },
-      { id: '2', name: 'Cooking Oil 1L', sku: 'OIL-102', purchasePrice: 150, salePrice: 185, stockQuantity: 8, lowStockThreshold: 10 },
-      { id: '3', name: 'Tea Leaves 250g', sku: 'TEA-45', purchasePrice: 80, salePrice: 110, stockQuantity: 100, lowStockThreshold: 20 },
+      { 
+        id: '1', name: 'Premium Rice 5kg', sku: 'RICE-001', purchasePrice: 400, salePrice: 550, stockQuantity: 50, lowStockThreshold: 10, createdAt: now,
+        movements: [{ id: 'm1', type: 'in', quantity: 50, date: now, reason: 'Initial Stock' }]
+      },
+      { 
+        id: '2', name: 'Cooking Oil 1L', sku: 'OIL-102', purchasePrice: 150, salePrice: 185, stockQuantity: 8, lowStockThreshold: 10, createdAt: now,
+        movements: [{ id: 'm2', type: 'in', quantity: 8, date: now, reason: 'Initial Stock' }]
+      },
+      { 
+        id: '3', name: 'Tea Leaves 250g', sku: 'TEA-45', purchasePrice: 80, salePrice: 110, stockQuantity: 100, lowStockThreshold: 20, createdAt: now,
+        movements: [{ id: 'm3', type: 'in', quantity: 100, date: now, reason: 'Initial Stock' }]
+      },
     ];
+    
     const demoCustomers: Customer[] = [
       { id: 'c1', name: 'John Doe', phone: '555-0101', address: '123 Main St', totalOutstanding: 1500 },
       { id: 'c2', name: 'Jane Smith', phone: '555-0202', address: '456 Oak Ave', totalOutstanding: 0 },
     ];
+
+    const demoLedger: LedgerEntry[] = [
+      {
+        id: 'l-init-1',
+        customerId: 'c1',
+        date: new Date(Date.now() - 86400000 * 5).toISOString(),
+        refId: 'OB-001',
+        type: 'invoice',
+        description: 'Opening Balance',
+        debit: 1500,
+        credit: 0,
+        balance: 1500
+      }
+    ];
+
     setProducts(demoProducts);
     setCustomers(demoCustomers);
+    setLedger(demoLedger);
   }, []);
 
   const login = async (email: string, password: string) => {
@@ -65,7 +92,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       address: 'Building 40, Street 5, Blue Area, Islamabad',
       phone: '+92 300 1234567',
       nextInvoiceNumber: 1,
-      invoicePrefix: 'INV'
+      invoicePrefix: 'INV',
+      primaryColor: '#2563eb'
     };
     setUser(mockUser);
     localStorage.setItem('inventory_user', JSON.stringify(mockUser));
@@ -80,7 +108,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       address: '',
       phone: '',
       nextInvoiceNumber: 1,
-      invoicePrefix: 'INV'
+      invoicePrefix: 'INV',
+      primaryColor: '#2563eb'
     };
     setUser(mockUser);
     localStorage.setItem('inventory_user', JSON.stringify(mockUser));
@@ -92,19 +121,53 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const updateUser = (updates: Partial<User>) => {
-    if (!user) return;
-    const updatedUser = { ...user, ...updates };
-    setUser(updatedUser);
-    localStorage.setItem('inventory_user', JSON.stringify(updatedUser));
+    setUser(prev => {
+      if (!prev) return null;
+      const updated = { ...prev, ...updates };
+      localStorage.setItem('inventory_user', JSON.stringify(updated));
+      return updated;
+    });
   };
 
-  const addProduct = (p: Omit<Product, 'id'>) => {
-    const newProduct = { ...p, id: Math.random().toString(36).substr(2, 9) };
+  const addProduct = (p: Omit<Product, 'id' | 'movements' | 'createdAt'>) => {
+    const now = new Date().toISOString();
+    const productId = Math.random().toString(36).substr(2, 9);
+    const newMovement: StockMovement = {
+      id: Math.random().toString(36).substr(2, 9),
+      type: 'in',
+      quantity: p.stockQuantity,
+      date: now,
+      reason: 'Initial Stock Addition'
+    };
+    const newProduct: Product = { 
+      ...p, 
+      id: productId, 
+      createdAt: now,
+      movements: [newMovement]
+    };
     setProducts(prev => [...prev, newProduct]);
   };
 
-  const updateProduct = (p: Product) => {
-    setProducts(prev => prev.map(item => item.id === p.id ? p : item));
+  const updateProduct = (p: Product, movementReason: string = 'Update') => {
+    setProducts(prev => prev.map(item => {
+      if (item.id === p.id) {
+        const diff = p.stockQuantity - item.stockQuantity;
+        const movements = [...item.movements];
+        
+        if (diff !== 0) {
+          movements.push({
+            id: Math.random().toString(36).substr(2, 9),
+            type: diff > 0 ? 'in' : 'out',
+            quantity: Math.abs(diff),
+            date: new Date().toISOString(),
+            reason: movementReason
+          });
+        }
+        
+        return { ...p, movements };
+      }
+      return item;
+    }));
   };
 
   const deleteProduct = (id: string) => {
@@ -117,60 +180,75 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const createInvoice = (inv: Omit<Invoice, 'id' | 'invoiceNumber'>): Invoice => {
-    let currentSeq = user?.nextInvoiceNumber || 1;
+    const currentSeq = user?.nextInvoiceNumber || 1;
     const prefix = user?.invoicePrefix || 'INV';
-    
-    let invoiceNumber = `${prefix}-${currentSeq.toString().padStart(5, '0')}`;
-    while (invoices.some(i => i.invoiceNumber === invoiceNumber)) {
-      currentSeq++;
-      invoiceNumber = `${prefix}-${currentSeq.toString().padStart(5, '0')}`;
-    }
-
+    const invoiceNumber = `${prefix}-${currentSeq.toString().padStart(5, '0')}`;
     const invoiceId = Math.random().toString(36).substr(2, 9);
+    
+    // Use user-provided date or fallback to now
+    const transactionDate = inv.date || new Date().toISOString();
+
+    const itemsWithCost = inv.items.map(item => {
+      const prod = products.find(p => p.id === item.productId);
+      return {
+        ...item,
+        purchasePrice: prod ? prod.purchasePrice : 0
+      };
+    });
+
     const newInvoice: Invoice = { 
       ...inv, 
+      date: transactionDate,
+      items: itemsWithCost,
       id: invoiceId, 
       invoiceNumber 
     };
 
-    // CRITICAL: Mandatory Inventory Reduction
-    // We iterate through all products and subtract the quantity sold in the invoice
+    // 1. ATOMIC INVENTORY REDUCTION & MOVEMENT LOGGING
     setProducts(prevProducts => prevProducts.map(prod => {
-      const soldItem = newInvoice.items.find(item => item.productId === prod.id);
+      const soldItem = inv.items.find(item => item.productId === prod.id);
       if (soldItem) {
-        // Subtract quantity and ensure it doesn't drop below zero
+        const newMovement: StockMovement = {
+          id: Math.random().toString(36).substr(2, 9),
+          type: 'out',
+          quantity: soldItem.quantity,
+          date: transactionDate,
+          reason: `Sale (Invoice ${invoiceNumber})`,
+          referenceId: invoiceId
+        };
         return { 
           ...prod, 
-          stockQuantity: Math.max(0, prod.stockQuantity - soldItem.quantity) 
+          stockQuantity: Math.max(0, prod.stockQuantity - soldItem.quantity),
+          movements: [...prod.movements, newMovement]
         };
       }
       return prod;
     }));
 
-    // Record the invoice in history
     setInvoices(prev => [...prev, newInvoice]);
 
-    // Update Customer Outstanding & Ledger
     const netDebt = newInvoice.total - newInvoice.paidAmount;
-    const currentCustomer = customers.find(c => c.id === newInvoice.customerId);
-    const currentOutstanding = currentCustomer?.totalOutstanding || 0;
-    
-    const newEntry: LedgerEntry = {
-      id: Math.random().toString(36).substr(2, 9),
-      customerId: newInvoice.customerId,
-      date: newInvoice.date,
-      refId: invoiceId,
-      type: 'invoice',
-      description: `Invoice ${invoiceNumber}${newInvoice.paidAmount > 0 ? ` (Partial Rs. ${newInvoice.paidAmount})` : ''}`,
-      debit: newInvoice.total,
-      credit: newInvoice.paidAmount,
-      balance: currentOutstanding + netDebt
-    };
-    
-    setLedger(prev => [...prev, newEntry]);
-    setCustomers(prev => prev.map(c => 
-      c.id === newInvoice.customerId ? { ...c, totalOutstanding: c.totalOutstanding + netDebt } : c
-    ));
+    setCustomers(prevCustomers => {
+      const targetCustomer = prevCustomers.find(c => c.id === newInvoice.customerId);
+      const currentOutstanding = targetCustomer?.totalOutstanding || 0;
+      
+      const newEntry: LedgerEntry = {
+        id: Math.random().toString(36).substr(2, 9),
+        customerId: newInvoice.customerId,
+        date: newInvoice.date,
+        refId: invoiceId,
+        type: 'invoice',
+        description: `Invoice ${invoiceNumber}${newInvoice.paidAmount > 0 ? ` (Received Rs. ${newInvoice.paidAmount})` : ''}`,
+        debit: newInvoice.total,
+        credit: newInvoice.paidAmount,
+        balance: currentOutstanding + netDebt
+      };
+      
+      setLedger(prevLedger => [...prevLedger, newEntry]);
+      return prevCustomers.map(c => 
+        c.id === newInvoice.customerId ? { ...c, totalOutstanding: c.totalOutstanding + netDebt } : c
+      );
+    });
 
     updateUser({ nextInvoiceNumber: currentSeq + 1 });
     return newInvoice;
@@ -181,25 +259,27 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const newPayment: Payment = { ...pay, id: paymentId };
     setPayments(prev => [...prev, newPayment]);
 
-    const currentCustomer = customers.find(c => c.id === newPayment.customerId);
-    const currentOutstanding = currentCustomer?.totalOutstanding || 0;
-    
-    const newEntry: LedgerEntry = {
-      id: Math.random().toString(36).substr(2, 9),
-      customerId: newPayment.customerId,
-      date: newPayment.date,
-      refId: paymentId,
-      type: 'payment',
-      description: `Payment via ${newPayment.method}`,
-      debit: 0,
-      credit: newPayment.amount,
-      balance: currentOutstanding - newPayment.amount
-    };
-    
-    setLedger(prev => [...prev, newEntry]);
-    setCustomers(prev => prev.map(c => 
-      c.id === newPayment.customerId ? { ...c, totalOutstanding: c.totalOutstanding - newPayment.amount } : c
-    ));
+    setCustomers(prevCustomers => {
+      const targetCustomer = prevCustomers.find(c => c.id === newPayment.customerId);
+      const currentOutstanding = targetCustomer?.totalOutstanding || 0;
+      
+      const newEntry: LedgerEntry = {
+        id: Math.random().toString(36).substr(2, 9),
+        customerId: newPayment.customerId,
+        date: newPayment.date,
+        refId: paymentId,
+        type: 'payment',
+        description: `Payment via ${newPayment.method}`,
+        debit: 0,
+        credit: newPayment.amount,
+        balance: currentOutstanding - newPayment.amount
+      };
+      
+      setLedger(prevLedger => [...prevLedger, newEntry]);
+      return prevCustomers.map(c => 
+        c.id === newPayment.customerId ? { ...c, totalOutstanding: c.totalOutstanding - newPayment.amount } : c
+      );
+    });
   };
 
   const addReminder = (r: Omit<PaymentReminder, 'id' | 'status' | 'createdAt'>) => {

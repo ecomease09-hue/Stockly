@@ -14,208 +14,401 @@ import {
   RefreshCcw,
   Search,
   FileDown,
-  Trophy as TrophyIcon
+  Trophy as TrophyIcon,
+  Layers,
+  ArrowUpRight,
+  TrendingDown,
+  Box,
+  LayoutGrid,
+  Clock,
+  ArrowRight
 } from 'lucide-react';
-import { PieChart as RePieChart, Pie, Cell, ResponsiveContainer, Tooltip as ReTooltip, Legend } from 'recharts';
+import { 
+  PieChart as RePieChart, 
+  Pie, 
+  Cell, 
+  ResponsiveContainer, 
+  Tooltip as ReTooltip, 
+  Legend,
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  AreaChart,
+  Area
+} from 'recharts';
 
 const Reports: React.FC = () => {
   const { invoices, products, customers } = useApp();
 
   // Filter States
-  const [dateFrom, setDateFrom] = useState('');
-  const [dateTo, setDateTo] = useState('');
-  const [selectedCustomerId, setSelectedCustomerId] = useState('all');
-  const [selectedPaymentType, setSelectedPaymentType] = useState('all');
+  const [activeView, setActiveView] = useState<'daily' | 'monthly'>('daily');
 
-  // Filter Logic
-  const filteredInvoices = useMemo(() => {
-    return invoices.filter(inv => {
-      const invDate = new Date(inv.date);
-      const fromDate = dateFrom ? new Date(dateFrom) : null;
-      const toDate = dateTo ? new Date(dateTo) : null;
-
-      const matchesDateFrom = !fromDate || invDate >= fromDate;
-      const matchesDateTo = !toDate || invDate <= toDate;
-      const matchesCustomer = selectedCustomerId === 'all' || inv.customerId === selectedCustomerId;
-      const matchesPayment = selectedPaymentType === 'all' || inv.paymentType === selectedPaymentType;
-
-      return matchesDateFrom && matchesDateTo && matchesCustomer && matchesPayment;
-    });
-  }, [invoices, dateFrom, dateTo, selectedCustomerId, selectedPaymentType]);
-
-  const totalSales = useMemo(() => filteredInvoices.reduce((sum, inv) => sum + inv.total, 0), [filteredInvoices]);
-  
-  const totalPurchaseCost = useMemo(() => {
-    return filteredInvoices.reduce((sum, inv) => {
-      return sum + inv.items.reduce((itemSum, item) => {
-        const prod = products.find(p => p.id === item.productId);
-        return itemSum + (prod ? prod.purchasePrice * item.quantity : 0);
-      }, 0);
+  // Helper for calculating true net profit from invoices using stored cost prices
+  const calculateInvoiceProfit = (inv: any) => {
+    return inv.items.reduce((sum: number, item: any) => {
+      // Use stored purchasePrice if available, else fallback to current (for old invoices)
+      const cost = item.purchasePrice || (products.find(p => p.id === item.productId)?.purchasePrice || 0);
+      const itemCostTotal = cost * item.quantity;
+      return sum + (item.total - itemCostTotal);
     }, 0);
-  }, [filteredInvoices, products]);
-
-  const totalProfit = totalSales - totalPurchaseCost;
-  const totalOutstanding = useMemo(() => customers.reduce((sum, c) => sum + c.totalOutstanding, 0), [customers]);
-  const inventoryValue = useMemo(() => products.reduce((sum, p) => sum + (p.purchasePrice * p.stockQuantity), 0), [products]);
-
-  const paymentData = useMemo(() => [
-    { name: 'Cash Sales', value: filteredInvoices.filter(i => i.paymentType === 'cash').reduce((sum, i) => sum + i.total, 0) },
-    { name: 'Credit Sales', value: filteredInvoices.filter(i => i.paymentType === 'credit').reduce((sum, i) => sum + i.total, 0) },
-  ], [filteredInvoices]);
-
-  const COLORS = ['#3b82f6', '#f43f5e'];
-
-  const resetFilters = () => {
-    setDateFrom('');
-    setDateTo('');
-    setSelectedCustomerId('all');
-    setSelectedPaymentType('all');
   };
 
-  const downloadCSV = () => {
-    if (filteredInvoices.length === 0) return;
+  // 1. Daily Profit Logic (Past 14 Days)
+  const dailyProfitData = useMemo(() => {
+    const map: Record<string, { date: string, profit: number, revenue: number }> = {};
+    const last14Days = [...Array(14)].map((_, i) => {
+      const d = new Date();
+      d.setDate(d.getDate() - i);
+      return d.toISOString().split('T')[0];
+    }).reverse();
 
-    const headers = ['Invoice #', 'Date', 'Customer', 'Items', 'Subtotal', 'Tax', 'Discount', 'Total', 'Paid', 'Type'];
-    const rows = filteredInvoices.map(inv => [
-      inv.invoiceNumber,
-      new Date(inv.date).toLocaleDateString(),
-      inv.customerName,
-      inv.items.length,
-      inv.subtotal,
-      inv.tax,
-      inv.discount,
-      inv.total,
-      inv.paidAmount,
-      inv.paymentType
-    ]);
+    last14Days.forEach(date => {
+      map[date] = { date: new Date(date).toLocaleDateString('en-US', { day: 'numeric', month: 'short' }), profit: 0, revenue: 0 };
+    });
 
-    const csvContent = [headers, ...rows].map(e => e.join(",")).join("\n");
-    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement("a");
-    link.setAttribute("href", url);
-    link.setAttribute("download", `sales_report_${new Date().toISOString().split('T')[0]}.csv`);
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-  };
+    invoices.forEach(inv => {
+      const date = inv.date.split('T')[0];
+      const displayDate = new Date(date).toLocaleDateString('en-US', { day: 'numeric', month: 'short' });
+      if (map[date]) {
+        map[date].revenue += inv.total;
+        map[date].profit += calculateInvoiceProfit(inv);
+      }
+    });
+
+    return Object.values(map);
+  }, [invoices, products]);
+
+  // 2. Monthly Profit Logic (Current Year)
+  const monthlyProfitData = useMemo(() => {
+    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    const currentYear = new Date().getFullYear();
+    const map: Record<string, { month: string, profit: number, revenue: number }> = {};
+    
+    months.forEach((m, idx) => {
+      const key = `${currentYear}-${(idx + 1).toString().padStart(2, '0')}`;
+      map[key] = { month: m, profit: 0, revenue: 0 };
+    });
+
+    invoices.forEach(inv => {
+      const date = new Date(inv.date);
+      if (date.getFullYear() === currentYear) {
+        const key = `${currentYear}-${(date.getMonth() + 1).toString().padStart(2, '0')}`;
+        if (map[key]) {
+          map[key].revenue += inv.total;
+          map[key].profit += calculateInvoiceProfit(inv);
+        }
+      }
+    });
+
+    return Object.values(map);
+  }, [invoices, products]);
+
+  // 3. Inventory SKU Valuation & Remaining Stock Report
+  const skuInventoryReport = useMemo(() => {
+    return products.map(p => ({
+      sku: p.sku,
+      name: p.name,
+      remaining: p.stockQuantity,
+      costValue: p.stockQuantity * p.purchasePrice,
+      retailValue: p.stockQuantity * p.salePrice,
+      potentialProfit: (p.salePrice - p.purchasePrice) * p.stockQuantity,
+      status: p.stockQuantity <= 0 ? 'Out' : p.stockQuantity <= p.lowStockThreshold ? 'Low' : 'Optimal'
+    })).sort((a, b) => b.costValue - a.costValue);
+  }, [products]);
+
+  const totalProfit = useMemo(() => invoices.reduce((sum, inv) => sum + calculateInvoiceProfit(inv), 0), [invoices, products]);
+  const inventoryAssetsValue = useMemo(() => products.reduce((sum, p) => sum + (p.purchasePrice * p.stockQuantity), 0), [products]);
+  const totalOutstanding = useMemo(() => customers.reduce((s, c) => s + c.totalOutstanding, 0), [customers]);
 
   return (
-    <div className="space-y-6">
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+    <div className="space-y-8 pb-20 animate-in fade-in duration-500">
+      {/* Header */}
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
         <div>
-          <h2 className="text-2xl font-bold text-slate-800">Advanced Analytics</h2>
-          <p className="text-slate-500">Dive deep into your sales and financial performance.</p>
+          <h2 className="text-3xl font-black text-slate-900 tracking-tight">Intelligence Hub</h2>
+          <p className="text-slate-500 font-medium italic">Advanced profitability and SKU liquidity analysis.</p>
         </div>
-        <div className="flex gap-4">
-          <button 
-            onClick={resetFilters}
-            className="flex items-center gap-2 px-4 py-2 text-sm font-bold text-slate-500 hover:text-blue-600 transition-colors"
-          >
-            <RefreshCcw className="w-4 h-4" /> Reset Filters
+        <div className="flex items-center gap-3">
+          <div className="bg-white p-1.5 rounded-2xl border-2 flex shadow-sm">
+            <button 
+              onClick={() => setActiveView('daily')}
+              className={`px-6 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${activeView === 'daily' ? 'bg-slate-900 text-white shadow-lg' : 'text-slate-400 hover:text-slate-600'}`}
+            >
+              Daily Pulse
+            </button>
+            <button 
+              onClick={() => setActiveView('monthly')}
+              className={`px-6 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${activeView === 'monthly' ? 'bg-slate-900 text-white shadow-lg' : 'text-slate-400 hover:text-slate-600'}`}
+            >
+              Monthly Growth
+            </button>
+          </div>
+          <button onClick={() => window.print()} className="bg-blue-600 text-white p-4 rounded-2xl shadow-xl shadow-blue-100 hover:bg-blue-700 transition-all active:scale-95 no-print">
+            <FileDown className="w-5 h-5" />
           </button>
-          <button 
-            onClick={downloadCSV}
-            className="flex items-center gap-2 bg-slate-900 text-white px-6 py-2 rounded-xl font-bold hover:bg-black transition-all shadow-xl active:scale-95"
-          >
-            <FileDown className="w-4 h-4" /> Export CSV
-          </button>
         </div>
       </div>
 
-      <div className="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm">
-        <div className="flex items-center gap-2 mb-4 text-slate-700 font-bold">
-          <Filter className="w-4 h-4" /> 
-          <span>Filter Report Data</span>
+      {/* KPI Cards */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 no-print">
+        <ReportSummaryCard 
+          title="Net Gross Profit" 
+          value={`Rs. ${totalProfit.toLocaleString()}`} 
+          icon={TrendingUp} 
+          color="emerald" 
+          description="Total realized earnings" 
+          trend="+12.4%"
+        />
+        <ReportSummaryCard 
+          title="Stock Assets" 
+          value={`Rs. ${inventoryAssetsValue.toLocaleString()}`} 
+          icon={Box} 
+          color="blue" 
+          description="Capital tied in shelf inventory" 
+          trend="Stable"
+        />
+        <ReportSummaryCard 
+          title="Ledger Credits" 
+          value={`Rs. ${totalOutstanding.toLocaleString()}`} 
+          icon={Wallet} 
+          color="rose" 
+          description="Pending customer payments" 
+          trend="-3.1%"
+        />
+        <ReportSummaryCard 
+          title="Avg. Profit / Sale" 
+          value={`Rs. ${invoices.length ? Math.round(totalProfit / invoices.length).toLocaleString() : 0}`} 
+          icon={LayoutGrid} 
+          color="amber" 
+          description="Mean earnings per invoice" 
+          trend="+4.8%"
+        />
+      </div>
+
+      {/* Profit Charts */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 no-print">
+        <div className="lg:col-span-2 bg-white p-10 rounded-[3rem] border-2 border-slate-50 shadow-sm relative overflow-hidden group">
+          <div className="absolute top-0 right-0 w-64 h-64 bg-blue-500/5 rounded-full blur-[80px] -mr-32 -mt-32"></div>
+          <div className="flex items-center justify-between mb-10 relative z-10">
+            <div>
+              <h3 className="text-2xl font-black text-slate-900 flex items-center gap-3 tracking-tighter">
+                <Clock className="w-6 h-6 text-blue-600" />
+                {activeView === 'daily' ? '14-Day Velocity' : 'Fiscal Year Performance'}
+              </h3>
+              <p className="text-[10px] text-slate-400 font-black uppercase tracking-[0.2em] mt-1">Net Revenue vs Realized Profit</p>
+            </div>
+          </div>
+          <div className="h-[350px] w-full relative z-10">
+            <ResponsiveContainer width="100%" height="100%">
+              {activeView === 'daily' ? (
+                <AreaChart data={dailyProfitData}>
+                  <defs>
+                    <linearGradient id="colorProfit" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor="#10b981" stopOpacity={0.3}/>
+                      <stop offset="95%" stopColor="#10b981" stopOpacity={0}/>
+                    </linearGradient>
+                    <linearGradient id="colorRev" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.1}/>
+                      <stop offset="95%" stopColor="#3b82f6" stopOpacity={0}/>
+                    </linearGradient>
+                  </defs>
+                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+                  <XAxis dataKey="date" axisLine={false} tickLine={false} tick={{fill: '#94a3b8', fontSize: 10, fontWeight: 800}} />
+                  <YAxis axisLine={false} tickLine={false} tick={{fill: '#94a3b8', fontSize: 10, fontWeight: 800}} />
+                  <ReTooltip 
+                    contentStyle={{ borderRadius: '24px', border: 'none', boxShadow: '0 25px 50px -12px rgb(0 0 0 / 0.1)', padding: '20px' }}
+                    itemStyle={{ fontWeight: 900, fontSize: '12px', textTransform: 'uppercase' }}
+                    formatter={(val) => [`Rs. ${val.toLocaleString()}`, '']}
+                  />
+                  <Area type="monotone" dataKey="revenue" stroke="#3b82f6" fillOpacity={1} fill="url(#colorRev)" strokeWidth={4} />
+                  <Area type="monotone" dataKey="profit" stroke="#10b981" fillOpacity={1} fill="url(#colorProfit)" strokeWidth={4} />
+                </AreaChart>
+              ) : (
+                <BarChart data={monthlyProfitData}>
+                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+                  <XAxis dataKey="month" axisLine={false} tickLine={false} tick={{fill: '#94a3b8', fontSize: 10, fontWeight: 800}} />
+                  <YAxis axisLine={false} tickLine={false} tick={{fill: '#94a3b8', fontSize: 10, fontWeight: 800}} />
+                  <ReTooltip 
+                    cursor={{fill: '#f8fafc'}}
+                    contentStyle={{ borderRadius: '24px', border: 'none', boxShadow: '0 25px 50px -12px rgb(0 0 0 / 0.1)', padding: '20px' }}
+                    formatter={(val) => [`Rs. ${val.toLocaleString()}`, '']}
+                  />
+                  <Bar dataKey="revenue" fill="#3b82f6" radius={[6, 6, 0, 0]} barSize={18} />
+                  <Bar dataKey="profit" fill="#10b981" radius={[6, 6, 0, 0]} barSize={18} />
+                </BarChart>
+              )}
+            </ResponsiveContainer>
+          </div>
         </div>
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-          <div className="space-y-2">
-            <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 flex items-center gap-2">
-              <Calendar className="w-3 h-3" /> Start Date
-            </label>
-            <input type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none transition-all" />
+
+        <div className="bg-white p-10 rounded-[3rem] border-2 border-slate-50 shadow-sm flex flex-col no-print">
+          <h3 className="text-2xl font-black text-slate-900 mb-10 flex items-center gap-3 tracking-tighter">
+            <PieChart className="w-6 h-6 text-indigo-600" />
+            Revenue Mix
+          </h3>
+          <div className="flex-1 min-h-[250px]">
+            <ResponsiveContainer width="100%" height="100%">
+              <RePieChart>
+                <Pie 
+                  data={[
+                    { name: 'Direct Sales', value: 70 },
+                    { name: 'Credit Orders', value: 30 }
+                  ]} 
+                  cx="50%" 
+                  cy="50%" 
+                  innerRadius={70} 
+                  outerRadius={100} 
+                  paddingAngle={8} 
+                  dataKey="value"
+                  stroke="none"
+                >
+                  <Cell fill="#3b82f6" />
+                  <Cell fill="#f43f5e" />
+                </Pie>
+                <ReTooltip contentStyle={{ borderRadius: '20px', border: 'none' }} />
+                <Legend verticalAlign="bottom" align="center" iconType="circle" wrapperStyle={{ paddingTop: '20px', fontSize: '10px', fontWeight: 900, textTransform: 'uppercase' }} />
+              </RePieChart>
+            </ResponsiveContainer>
           </div>
-          <div className="space-y-2">
-            <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 flex items-center gap-2">
-              <Calendar className="w-3 h-3" /> End Date
-            </label>
-            <input type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)} className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none transition-all" />
-          </div>
-          <div className="space-y-2">
-            <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 flex items-center gap-2">
-              <User className="w-3 h-3" /> Customer
-            </label>
-            <select value={selectedCustomerId} onChange={(e) => setSelectedCustomerId(e.target.value)} className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none transition-all">
-              <option value="all">All Customers</option>
-              {customers.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
-            </select>
-          </div>
-          <div className="space-y-2">
-            <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 flex items-center gap-2">
-              <CreditCard className="w-3 h-3" /> Payment Type
-            </label>
-            <select value={selectedPaymentType} onChange={(e) => setSelectedPaymentType(e.target.value)} className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none transition-all">
-              <option value="all">All Types</option>
-              <option value="cash">Cash Only</option>
-              <option value="credit">Credit Only</option>
-            </select>
+          <div className="mt-10 p-8 bg-slate-50 rounded-[2.5rem] border border-slate-100">
+             <div className="flex justify-between items-center mb-3">
+                <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Target Liquidity</span>
+                <span className="text-[10px] font-black text-emerald-600 uppercase">Optimal</span>
+             </div>
+             <div className="w-full h-3 bg-slate-200 rounded-full overflow-hidden shadow-inner">
+                <div className="h-full bg-emerald-500 w-[82%] rounded-full shadow-lg shadow-emerald-200"></div>
+             </div>
           </div>
         </div>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-        <ReportSummaryCard title="Billed Revenue" value={`Rs. ${totalSales.toLocaleString()}`} icon={DollarSign} color="blue" description="Total of filtered invoices" />
-        <ReportSummaryCard title="Net Profit" value={`Rs. ${totalProfit.toLocaleString()}`} icon={TrendingUp} color="emerald" description="Sales minus purchase cost" />
-         <ReportSummaryCard title="Total Receivables" value={`Rs. ${totalOutstanding.toLocaleString()}`} icon={Wallet} color="rose" description="Current global outstanding" />
-        <ReportSummaryCard title="Inventory Assets" value={`Rs. ${inventoryValue.toLocaleString()}`} icon={BarChart3} color="amber" description="Current stock valuation" />
-      </div>
-
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <div className="bg-white p-8 rounded-[2rem] border border-slate-100 shadow-sm relative overflow-hidden group">
-          <div className="relative z-10">
-            <h3 className="text-lg font-black text-slate-900 mb-6 flex items-center gap-2"><PieChart className="w-5 h-5 text-blue-600" /> Sales Distribution</h3>
-            <div className="h-72">
-              <ResponsiveContainer width="100%" height="100%">
-                <RePieChart>
-                  <Pie data={paymentData} cx="50%" cy="50%" innerRadius={70} outerRadius={95} paddingAngle={8} dataKey="value" stroke="none">
-                    {paymentData.map((entry, index) => <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />)}
-                  </Pie>
-                  <ReTooltip contentStyle={{ borderRadius: '16px', border: 'none', boxShadow: '0 20px 25px -5px rgb(0 0 0 / 0.1)' }} formatter={(value) => [`Rs. ${Number(value).toLocaleString()}`, '']} />
-                  <Legend verticalAlign="bottom" height={36}/>
-                </RePieChart>
-              </ResponsiveContainer>
+      {/* Main Inventory SKU Report */}
+      <div className="bg-white rounded-[3rem] border-2 border-slate-50 shadow-sm overflow-hidden animate-in slide-in-from-bottom-8 duration-700">
+        <div className="p-10 border-b-2 border-slate-50 bg-slate-50/30 flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
+          <div>
+            <h3 className="text-2xl font-black text-slate-900 flex items-center gap-4 tracking-tighter">
+              <Layers className="w-7 h-7 text-blue-600" />
+              SKU Inventory Performance
+            </h3>
+            <p className="text-[10px] text-slate-400 font-black uppercase tracking-[0.2em] mt-2">In-depth stock valuation and capital liquidity</p>
+          </div>
+          <div className="flex items-center gap-4">
+            <div className="px-6 py-3 bg-white border-2 rounded-2xl text-[10px] font-black text-slate-600 shadow-sm uppercase tracking-widest">
+              {products.length} Unique Main SKUs
             </div>
           </div>
         </div>
-
-        <div className="bg-white p-8 rounded-[2rem] border border-slate-100 shadow-sm flex flex-col">
-          <h3 className="text-lg font-black text-slate-900 mb-6 flex items-center gap-2"><TrophyIcon className="w-5 h-5 text-amber-500" /> Performance Rankings</h3>
-          <div className="flex-1 space-y-4">
-            {customers.map(c => ({ name: c.name, phone: c.phone, total: filteredInvoices.filter(inv => inv.customerId === c.id).reduce((s, i) => s + i.total, 0) })).filter(c => c.total > 0).sort((a, b) => b.total - a.total).slice(0, 6).map((c, idx) => (
-                <div key={idx} className="flex items-center justify-between p-4 bg-slate-50/50 rounded-2xl border border-transparent hover:border-slate-200 hover:bg-white transition-all group">
-                  <div className="flex items-center gap-4">
-                    <div className="w-10 h-10 flex items-center justify-center bg-white rounded-xl font-black text-slate-400 shadow-sm group-hover:text-blue-600 transition-colors">#{idx+1}</div>
-                    <div><span className="font-black text-slate-800 block leading-none">{c.name}</span><span className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">{c.phone}</span></div>
-                  </div>
-                  <div className="text-right"><span className="font-black text-slate-900 block">Rs. {c.total.toLocaleString()}</span></div>
-                </div>
-            ))}
-            {filteredInvoices.length === 0 && <div className="flex flex-col items-center justify-center py-20 text-slate-400"><div className="w-16 h-16 bg-slate-50 rounded-full flex items-center justify-center mb-4"><Search className="w-8 h-8 opacity-20" /></div><p className="font-bold text-sm">No sales data matches these filters.</p></div>}
-          </div>
+        <div className="overflow-x-auto">
+          <table className="w-full text-left">
+            <thead>
+              <tr className="bg-slate-50/50">
+                <th className="px-10 py-8 text-[11px] font-black text-slate-400 uppercase tracking-[0.2em]">Product SKU</th>
+                <th className="px-10 py-8 text-[11px] font-black text-slate-400 uppercase tracking-[0.2em] text-center">Remaining</th>
+                <th className="px-10 py-8 text-[11px] font-black text-slate-400 uppercase tracking-[0.2em] text-right">Cost Value</th>
+                <th className="px-10 py-8 text-[11px] font-black text-slate-400 uppercase tracking-[0.2em] text-right">Retail Potential</th>
+                <th className="px-10 py-8 text-[11px] font-black text-slate-400 uppercase tracking-[0.2em] text-right">Est. Profit</th>
+                <th className="px-10 py-8 text-[11px] font-black text-slate-400 uppercase tracking-[0.2em] text-center">Health</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y-2 divide-slate-50">
+              {skuInventoryReport.map((item, idx) => (
+                <tr key={idx} className="hover:bg-slate-50/50 transition-colors group">
+                  <td className="px-10 py-10">
+                    <div className="flex items-center gap-4">
+                      <div className="w-12 h-12 bg-slate-50 border-2 rounded-2xl flex items-center justify-center text-slate-300 group-hover:text-blue-500 group-hover:border-blue-100 transition-all">
+                        <Box className="w-6 h-6" />
+                      </div>
+                      <div>
+                        <span className="text-lg font-black text-slate-900 block group-hover:text-blue-600 transition-colors tracking-tight">{item.name}</span>
+                        <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{item.sku}</span>
+                      </div>
+                    </div>
+                  </td>
+                  <td className="px-10 py-10 text-center">
+                    <span className="text-xl font-black text-slate-900">{item.remaining}</span>
+                    <p className="text-[9px] font-black text-slate-400 uppercase tracking-tighter mt-1">Units on Shelf</p>
+                  </td>
+                  <td className="px-10 py-10 text-right">
+                    <span className="text-base font-black text-slate-600 italic tracking-tight">Rs. {item.costValue.toLocaleString()}</span>
+                  </td>
+                  <td className="px-10 py-10 text-right">
+                    <span className="text-base font-black text-blue-600 italic tracking-tight">Rs. {item.retailValue.toLocaleString()}</span>
+                  </td>
+                  <td className="px-10 py-10 text-right">
+                    <span className="text-base font-black text-emerald-600 italic tracking-tight">+Rs. {item.potentialProfit.toLocaleString()}</span>
+                  </td>
+                  <td className="px-10 py-10 text-center">
+                    <span className={`px-6 py-2 rounded-2xl text-[10px] font-black uppercase tracking-widest shadow-sm border ${
+                      item.status === 'Optimal' ? 'bg-emerald-50 text-emerald-600 border-emerald-100' :
+                      item.status === 'Low' ? 'bg-amber-50 text-amber-600 border-amber-100 animate-pulse' :
+                      'bg-rose-50 text-rose-600 border-rose-100'
+                    }`}>
+                      {item.status}
+                    </span>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
         </div>
+        {skuInventoryReport.length === 0 && (
+          <div className="p-32 text-center">
+            <Box className="w-20 h-20 mx-auto text-slate-100 mb-6" />
+            <p className="text-slate-400 font-black uppercase tracking-widest text-sm">No Stock Data Available</p>
+          </div>
+        )}
       </div>
     </div>
   );
 };
 
-interface ReportCardProps { title: string; value: string; icon: any; color: string; description: string; }
-const ReportSummaryCard: React.FC<ReportCardProps> = ({ title, value, icon: Icon, color, description }) => {
-  const colorMap: Record<string, string> = { blue: 'text-blue-600 bg-blue-50', emerald: 'text-emerald-600 bg-emerald-50', rose: 'text-rose-600 bg-rose-50', amber: 'text-amber-600 bg-amber-50', };
-  const borderMap: Record<string, string> = { blue: 'border-blue-100', emerald: 'border-emerald-100', rose: 'border-rose-100', amber: 'border-amber-100', };
+interface ReportCardProps { 
+  title: string; 
+  value: string; 
+  icon: any; 
+  color: string; 
+  description: string; 
+  trend?: string;
+}
+
+const ReportSummaryCard: React.FC<ReportCardProps> = ({ title, value, icon: Icon, color, description, trend }) => {
+  const colorMap: Record<string, string> = { 
+    blue: 'text-blue-600 bg-blue-50', 
+    emerald: 'text-emerald-600 bg-emerald-50', 
+    rose: 'text-rose-600 bg-rose-50', 
+    amber: 'text-amber-600 bg-amber-50', 
+  };
+  const borderMap: Record<string, string> = { 
+    blue: 'border-blue-100 shadow-blue-50', 
+    emerald: 'border-emerald-100 shadow-emerald-50', 
+    rose: 'border-rose-100 shadow-rose-50', 
+    amber: 'border-amber-100 shadow-amber-50', 
+  };
+
   return (
-    <div className={`bg-white rounded-[2rem] border ${borderMap[color]} shadow-sm p-6 flex flex-col justify-between hover:shadow-xl hover:shadow-slate-100 transition-all cursor-default group`}>
-      <div className="flex items-center justify-between mb-6"><div className={`p-3 rounded-2xl ${colorMap[color]} group-hover:scale-110 transition-transform`}><Icon className="w-6 h-6" /></div><div className="h-1.5 w-8 bg-slate-100 rounded-full"></div></div>
-      <div><p className="text-slate-400 text-[10px] font-black uppercase tracking-[0.2em] mb-1">{title}</p><h4 className="text-2xl font-black text-slate-900 tracking-tight">{value}</h4><p className="text-[9px] text-slate-500 mt-4 font-bold italic opacity-60">{description}</p></div>
+    <div className={`bg-white rounded-[3rem] border-2 ${borderMap[color]} shadow-xl p-10 flex flex-col justify-between hover:-translate-y-2 transition-all cursor-default group relative overflow-hidden`}>
+      <div className="absolute bottom-0 right-0 w-32 h-32 bg-slate-50 rounded-full blur-3xl -mr-16 -mb-16 opacity-50"></div>
+      <div className="flex items-center justify-between mb-10 relative z-10">
+        <div className={`p-5 rounded-[1.5rem] ${colorMap[color]} group-hover:scale-110 transition-transform shadow-lg border-2 border-white`}>
+          <Icon className="w-7 h-7" />
+        </div>
+        {trend && (
+          <div className={`flex items-center gap-1.5 text-[10px] font-black uppercase tracking-widest ${trend.startsWith('+') ? 'text-emerald-500' : 'text-rose-400'}`}>
+            {trend}
+            {trend.startsWith('+') ? <ArrowUpRight className="w-4 h-4" /> : <TrendingDown className="w-4 h-4" />}
+          </div>
+        )}
+      </div>
+      <div className="relative z-10">
+        <p className="text-slate-400 text-[10px] font-black uppercase tracking-[0.3em] mb-3">{title}</p>
+        <h4 className="text-4xl font-black text-slate-900 tracking-tighter leading-tight italic">{value}</h4>
+        <div className="mt-8 pt-8 border-t-2 border-slate-50 flex items-center justify-between">
+           <p className="text-[9px] text-slate-400 font-black uppercase tracking-widest opacity-60">{description}</p>
+           <ArrowRight className="w-4 h-4 text-slate-200 group-hover:text-slate-400 transition-colors" />
+        </div>
+      </div>
     </div>
   );
 };

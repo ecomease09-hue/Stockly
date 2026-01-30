@@ -6,17 +6,15 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Stockly Automator</title>
     <script src="https://cdn.tailwindcss.com"></script>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;900&display=swap" rel="stylesheet">
     <style>
         body { font-family: 'Inter', sans-serif; }
         
         /* Print Optimization */
         @media print {
-            /* Hide all UI elements except the invoice */
             .no-print { display: none !important; }
             .print-only { display: block !important; }
             
-            /* Reset body styles for paper */
             body { 
                 background: white !important; 
                 padding: 0 !important; 
@@ -25,13 +23,11 @@
                 print-color-adjust: exact !important;
             }
             
-            /* Configure page margins */
             @page { 
-                margin: 0.5cm; 
+                margin: 0; 
                 size: auto;
             }
 
-            /* Ensure the modal is the only visible thing and takes full width */
             #root > div > main {
                 padding: 0 !important;
                 margin: 0 !important;
@@ -55,22 +51,6 @@
                 background: white !important;
             }
 
-            /* Force display of backgrounds/colors */
-            .bg-slate-900 { background-color: #0f172a !important; color: white !important; }
-            .bg-blue-600 { background-color: #2563eb !important; color: white !important; }
-            .bg-emerald-500 { background-color: #10b981 !important; color: white !important; }
-            .bg-rose-500 { background-color: #f43f5e !important; color: white !important; }
-            .bg-amber-50 { background-color: #fffbeb !important; }
-            .bg-slate-50 { background-color: #f8fafc !important; }
-
-            /* Ensure logos print clearly */
-            img { 
-                max-width: 100%; 
-                height: auto; 
-                print-color-adjust: exact;
-            }
-
-            /* Remove rounded corners and extra shadows for professional look on paper */
             .md\:rounded-\[4rem\], .rounded-\[3rem\], .rounded-\[2\.5rem\], .rounded-\[2rem\] {
                 border-radius: 0 !important;
             }
@@ -91,12 +71,21 @@
         }
         
         @keyframes item-pop {
-            0% { transform: scale(0.95); opacity: 0; }
-            50% { transform: scale(1.05); }
+            0% { transform: scale(0.92); opacity: 0; filter: blur(4px); }
+            60% { transform: scale(1.03); opacity: 1; filter: blur(0); }
             100% { transform: scale(1); opacity: 1; }
         }
         .animate-item-pop {
-            animation: item-pop 0.3s ease-out forwards;
+            animation: item-pop 0.35s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+        }
+
+        @keyframes badge-bump {
+            0% { transform: scale(1); }
+            30% { transform: scale(1.2); }
+            100% { transform: scale(1); }
+        }
+        .animate-badge-bump {
+            animation: badge-bump 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
         }
 
         .custom-scrollbar::-webkit-scrollbar {
@@ -118,7 +107,9 @@
     "react/": "https://esm.sh/react@^19.2.3/",
     "react-router-dom": "https://esm.sh/react-router-dom@^7.13.0",
     "lucide-react": "https://esm.sh/lucide-react@^0.563.0",
-    "recharts": "https://esm.sh/recharts@^3.7.0"
+    "recharts": "https://esm.sh/recharts@^3.7.0",
+    "jspdf": "https://esm.sh/jspdf@^2.5.1",
+    "html2canvas": "https://esm.sh/html2canvas@^1.4.1"
   }
 }
 </script>
