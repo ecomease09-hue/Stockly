@@ -7,6 +7,8 @@ import Dashboard from './components/Dashboard';
 import Inventory from './components/Inventory';
 import Billing from './components/Billing';
 import Customers from './components/Customers';
+import Vendors from './components/Vendors';
+import VendorLedger from './components/VendorLedger';
 import Ledger from './components/Ledger';
 import Reports from './components/Reports';
 import UserDetails from './components/UserDetails';
@@ -36,6 +38,8 @@ const AppContent: React.FC = () => {
         <Route path="/inventory" element={<ProtectedRoute><Layout><Inventory /></Layout></ProtectedRoute>} />
         <Route path="/billing" element={<ProtectedRoute><Layout><Billing /></Layout></ProtectedRoute>} />
         <Route path="/customers" element={<ProtectedRoute><Layout><Customers /></Layout></ProtectedRoute>} />
+        <Route path="/vendors" element={<ProtectedRoute><Layout><Vendors /></Layout></ProtectedRoute>} />
+        <Route path="/vendor-ledger" element={<ProtectedRoute><Layout><VendorLedger /></Layout></ProtectedRoute>} />
         <Route path="/ledger" element={<ProtectedRoute><Layout><Ledger /></Layout></ProtectedRoute>} />
         <Route path="/reports" element={<ProtectedRoute><Layout><Reports /></Layout></ProtectedRoute>} />
         <Route path="/profile" element={<ProtectedRoute><Layout><UserDetails /></Layout></ProtectedRoute>} />

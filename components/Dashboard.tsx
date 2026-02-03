@@ -15,7 +15,9 @@ import {
   Phone,
   Hash,
   ChevronRight,
-  ArrowRight
+  ArrowRight,
+  Truck,
+  Wallet2
 } from 'lucide-react';
 import { 
   AreaChart, 
@@ -28,7 +30,7 @@ import {
 } from 'recharts';
 
 const Dashboard: React.FC = () => {
-  const { products, customers, invoices, user, updateUser } = useApp();
+  const { products, customers, vendors, invoices, user, updateUser } = useApp();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const navigate = useNavigate();
 
@@ -45,6 +47,9 @@ const Dashboard: React.FC = () => {
   const lowStockProducts = products.filter(p => p.stockQuantity <= p.lowStockThreshold);
   const lowStockCount = lowStockProducts.length;
   const totalCustomers = customers.length;
+  
+  // Vendor Payables
+  const totalVendorPayables = vendors.reduce((sum, v) => sum + (v.totalBalance || 0), 0);
 
   const handleLogoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -80,8 +85,8 @@ const Dashboard: React.FC = () => {
     <div className="space-y-6">
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
-          <h2 className="text-2xl font-bold text-slate-800">Business Overview</h2>
-          <p className="text-slate-500">Welcome back, {user?.name}! Here is your shop status.</p>
+          <h2 className="text-2xl font-bold text-slate-800 tracking-tight">Business Overview</h2>
+          <p className="text-slate-500">Welcome back, {user?.name}! Your shop is running smooth.</p>
         </div>
         <div className="flex gap-2">
            <div className="bg-white px-4 py-2 border rounded-xl shadow-sm flex items-center gap-3">
@@ -116,20 +121,20 @@ const Dashboard: React.FC = () => {
           color="emerald" 
         />
         <KpiCard 
-          title="Low Stock Alerts" 
+          title="Vendor Payables" 
+          value={`Rs. ${totalVendorPayables.toLocaleString()}`} 
+          trend={totalVendorPayables > 0 ? "Outstanding Debt" : "Clear Dues"} 
+          trendUp={false} 
+          icon={Truck} 
+          color={totalVendorPayables > 0 ? "rose" : "blue"} 
+        />
+        <KpiCard 
+          title="Low Stock SKUs" 
           value={lowStockCount.toString()} 
-          trend={lowStockCount > 0 ? "Action Required" : "Stock healthy"} 
+          trend={lowStockCount > 0 ? "Restock Needed" : "Optimal Levels"} 
           trendUp={false} 
           icon={AlertTriangle} 
           color={lowStockCount > 0 ? "rose" : "amber"} 
-        />
-        <KpiCard 
-          title="Total Customers" 
-          value={totalCustomers.toString()} 
-          trend="Active database" 
-          trendUp={true} 
-          icon={UserPlus} 
-          color="indigo" 
         />
       </div>
 
@@ -139,7 +144,7 @@ const Dashboard: React.FC = () => {
           <div className="flex items-center justify-between mb-6">
             <h3 className="text-lg font-semibold flex items-center gap-2">
               <TrendingUp className="w-5 h-5 text-blue-500" />
-              Revenue vs Profit
+              Performance Analytics
             </h3>
             <div className="flex gap-4">
               <div className="flex items-center gap-2">
@@ -180,7 +185,7 @@ const Dashboard: React.FC = () => {
           <div className="bg-white p-6 rounded-xl border shadow-sm">
             <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
               <Store className="w-5 h-5 text-blue-600" />
-              Shop Identity
+              Shop Configuration
             </h3>
             <div className="space-y-4">
               <div className="flex flex-col items-center justify-center p-6 border-2 border-dashed rounded-2xl bg-slate-50 relative group">
@@ -195,9 +200,8 @@ const Dashboard: React.FC = () => {
                   onClick={() => fileInputRef.current?.click()}
                   className="flex items-center gap-2 text-xs font-bold bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-all shadow-lg shadow-blue-100"
                 >
-                  <Upload className="w-3 h-3" /> {user?.logoUrl ? 'Update Logo' : 'Set Shop Logo'}
+                  <Upload className="w-3 h-3" /> {user?.logoUrl ? 'Update Brand' : 'Set Brand Logo'}
                 </button>
-                <p className="text-[10px] text-slate-400 mt-2 font-medium">Appears automatically on all invoices</p>
                 <input 
                   type="file" 
                   ref={fileInputRef} 
@@ -209,25 +213,12 @@ const Dashboard: React.FC = () => {
 
               <div className="space-y-3">
                 <div className="p-3 bg-slate-50 rounded-xl border border-slate-200">
-                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1 block">Shop Name</label>
+                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1 block">Shop Identity</label>
                   <input 
                     name="shopName"
                     value={user?.shopName || ''}
                     onChange={handleProfileUpdate}
                     className="w-full bg-transparent text-sm font-bold text-slate-900 outline-none focus:ring-1 focus:ring-blue-400 rounded px-1"
-                  />
-                </div>
-                <div className="p-3 bg-slate-50 rounded-xl border border-slate-200">
-                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1 block flex items-center gap-1">
-                    <MapPin className="w-3 h-3" /> Address
-                  </label>
-                  <textarea 
-                    name="address"
-                    rows={2}
-                    value={user?.address || ''}
-                    onChange={handleProfileUpdate}
-                    className="w-full bg-transparent text-sm font-bold text-slate-900 outline-none focus:ring-1 focus:ring-blue-400 rounded px-1 resize-none"
-                    placeholder="Enter shop address..."
                   />
                 </div>
                 <div className="flex gap-3">
@@ -240,12 +231,11 @@ const Dashboard: React.FC = () => {
                       value={user?.phone || ''}
                       onChange={handleProfileUpdate}
                       className="w-full bg-transparent text-sm font-bold text-slate-900 outline-none focus:ring-1 focus:ring-blue-400 rounded px-1"
-                      placeholder="Phone..."
                     />
                   </div>
                   <div className="p-3 bg-slate-50 rounded-xl border border-slate-200 flex-1">
                     <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1 block flex items-center gap-1">
-                      <Hash className="w-3 h-3" /> Next Inv #
+                      <Hash className="w-3 h-3" /> Inv #
                     </label>
                     <input 
                       name="nextInvoiceNumber"
@@ -264,11 +254,11 @@ const Dashboard: React.FC = () => {
             <div className="flex items-center justify-between mb-6">
               <h3 className="text-lg font-semibold flex items-center gap-2">
                 <AlertTriangle className="w-5 h-5 text-rose-500" />
-                Stock Alerts
+                Inventory Alerts
               </h3>
               {lowStockCount > 0 && (
                 <span className="bg-rose-100 text-rose-700 text-[10px] font-black px-2 py-1 rounded-full uppercase tracking-tighter">
-                  {lowStockCount} Issues
+                  {lowStockCount} SKUs
                 </span>
               )}
             </div>
@@ -276,7 +266,7 @@ const Dashboard: React.FC = () => {
             <div className="space-y-3 max-h-[320px] overflow-y-auto pr-1 custom-scrollbar">
               {lowStockProducts.length === 0 ? (
                 <div className="text-center py-12 bg-slate-50 rounded-2xl border-2 border-dashed">
-                  <p className="text-slate-400 text-sm font-medium">All inventory levels optimal.</p>
+                  <p className="text-slate-400 text-sm font-medium">Stock levels are healthy.</p>
                 </div>
               ) : (
                 lowStockProducts.map(prod => (
@@ -287,29 +277,17 @@ const Dashboard: React.FC = () => {
                   >
                     <div className="min-w-0">
                       <p className="text-sm font-black text-slate-900 truncate group-hover:text-rose-600 transition-colors">{prod.name}</p>
-                      <div className="flex items-center gap-2 mt-1">
-                        <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">SKU: {prod.sku}</span>
-                      </div>
+                      <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1">Sourced from: {prod.vendorName || 'Direct'}</p>
                     </div>
                     <div className="text-right flex-shrink-0">
                       <p className={`text-sm font-black ${prod.stockQuantity <= 0 ? 'text-rose-600 animate-pulse' : 'text-amber-600'}`}>
-                        {prod.stockQuantity} in stock
+                        {prod.stockQuantity} Units
                       </p>
-                      <p className="text-[9px] font-bold text-slate-300 uppercase tracking-tighter">Limit: {prod.lowStockThreshold}</p>
                     </div>
                   </div>
                 ))
               )}
             </div>
-
-            {lowStockCount > 0 && (
-              <button 
-                onClick={() => navigate('/inventory')}
-                className="w-full mt-4 py-3 bg-slate-50 text-slate-600 rounded-xl text-xs font-black uppercase tracking-widest flex items-center justify-center gap-2 hover:bg-slate-100 transition-all border border-slate-100"
-              >
-                Manage Inventory <ArrowRight className="w-4 h-4" />
-              </button>
-            )}
           </div>
         </div>
       </div>
@@ -343,7 +321,6 @@ const KpiCard: React.FC<KpiCardProps> = ({ title, value, trend, trendUp, icon: I
         </div>
         <div className={`flex items-center gap-1 text-[10px] font-black uppercase tracking-widest ${trendUp ? 'text-emerald-600' : 'text-slate-400'}`}>
           {trend}
-          {trendUp ? <ArrowUpRight className="w-3 h-3" /> : null}
         </div>
       </div>
       <div>

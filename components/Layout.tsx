@@ -12,7 +12,9 @@ import {
   Menu, 
   X,
   LogOut,
-  UserCircle
+  UserCircle,
+  Truck,
+  Wallet2
 } from 'lucide-react';
 
 const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
@@ -30,7 +32,9 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
     { to: '/inventory', icon: Package, label: 'Inventory' },
     { to: '/billing', icon: ReceiptText, label: 'Billing' },
     { to: '/customers', icon: Users, label: 'Customers' },
-    { to: '/ledger', icon: BookOpenText, label: 'Ledger' },
+    { to: '/ledger', icon: BookOpenText, label: 'Customer Ledger' },
+    { to: '/vendors', icon: Truck, label: 'Vendors' },
+    { to: '/vendor-ledger', icon: Wallet2, label: 'Vendor Ledger' },
     { to: '/reports', icon: BarChart3, label: 'Reports' },
     { to: '/profile', icon: UserCircle, label: 'Settings' },
   ];

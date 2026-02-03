@@ -1,13 +1,15 @@
 
 import React, { createContext, useContext, useState, useEffect } from 'react';
-import { Product, Customer, Invoice, LedgerEntry, Payment, PaymentReminder, User, StockMovement } from '../types';
+import { Product, Customer, Invoice, LedgerEntry, Payment, PaymentReminder, User, StockMovement, Vendor, VendorLedgerEntry } from '../types';
 
 interface AppContextType {
   user: User | null;
   products: Product[];
   customers: Customer[];
+  vendors: Vendor[];
   invoices: Invoice[];
   ledger: LedgerEntry[];
+  vendorLedger: VendorLedgerEntry[];
   payments: Payment[];
   reminders: PaymentReminder[];
   isAuthenticated: boolean;
@@ -19,6 +21,10 @@ interface AppContextType {
   updateProduct: (product: Product, movementReason?: string) => void;
   deleteProduct: (id: string) => void;
   addCustomer: (customer: Omit<Customer, 'id' | 'totalOutstanding'>) => void;
+  addVendor: (vendor: Omit<Vendor, 'id' | 'totalBalance'>) => void;
+  updateVendor: (vendor: Vendor) => void;
+  deleteVendor: (id: string) => void;
+  addVendorPayment: (payment: { vendorId: string, amount: number, method: string, date: string, note?: string }) => void;
   createInvoice: (invoice: Omit<Invoice, 'id' | 'invoiceNumber'>) => Invoice;
   addPayment: (payment: Omit<Payment, 'id'>) => void;
   addReminder: (reminder: Omit<PaymentReminder, 'id' | 'status' | 'createdAt'>) => void;
@@ -32,8 +38,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [user, setUser] = useState<User | null>(null);
   const [products, setProducts] = useState<Product[]>([]);
   const [customers, setCustomers] = useState<Customer[]>([]);
+  const [vendors, setVendors] = useState<Vendor[]>([]);
   const [invoices, setInvoices] = useState<Invoice[]>([]);
   const [ledger, setLedger] = useState<LedgerEntry[]>([]);
+  const [vendorLedger, setVendorLedger] = useState<VendorLedgerEntry[]>([]);
   const [payments, setPayments] = useState<Payment[]>([]);
   const [reminders, setReminders] = useState<PaymentReminder[]>([]);
 
@@ -44,56 +52,52 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
     
     const now = new Date().toISOString();
+    
+    const demoVendors: Vendor[] = [
+      { id: 'v1', name: 'Global Foods Ltd', contactPerson: 'Mark Supplier', phone: '555-9000', email: 'sales@globalfoods.com', address: 'Industrial Area Phase 1', totalBalance: 5000 },
+      { id: 'v2', name: 'Agro Distributors', contactPerson: 'Sarah Seed', phone: '555-8000', email: 'sarah@agro.com', address: 'North Farm Road', totalBalance: 0 }
+    ];
+
     const demoProducts: Product[] = [
       { 
         id: '1', name: 'Premium Rice 5kg', sku: 'RICE-001', purchasePrice: 400, salePrice: 550, stockQuantity: 50, lowStockThreshold: 10, createdAt: now,
+        vendorId: 'v1', vendorName: 'Global Foods Ltd',
         movements: [{ id: 'm1', type: 'in', quantity: 50, date: now, reason: 'Initial Stock' }]
       },
       { 
         id: '2', name: 'Cooking Oil 1L', sku: 'OIL-102', purchasePrice: 150, salePrice: 185, stockQuantity: 8, lowStockThreshold: 10, createdAt: now,
+        vendorId: 'v1', vendorName: 'Global Foods Ltd',
         movements: [{ id: 'm2', type: 'in', quantity: 8, date: now, reason: 'Initial Stock' }]
-      },
-      { 
-        id: '3', name: 'Tea Leaves 250g', sku: 'TEA-45', purchasePrice: 80, salePrice: 110, stockQuantity: 100, lowStockThreshold: 20, createdAt: now,
-        movements: [{ id: 'm3', type: 'in', quantity: 100, date: now, reason: 'Initial Stock' }]
       },
     ];
     
     const demoCustomers: Customer[] = [
       { id: 'c1', name: 'John Doe', phone: '555-0101', address: '123 Main St', totalOutstanding: 1500 },
-      { id: 'c2', name: 'Jane Smith', phone: '555-0202', address: '456 Oak Ave', totalOutstanding: 0 },
     ];
 
-    const demoLedger: LedgerEntry[] = [
+    const demoVendorLedger: VendorLedgerEntry[] = [
       {
-        id: 'l-init-1',
-        customerId: 'c1',
-        date: new Date(Date.now() - 86400000 * 5).toISOString(),
-        refId: 'OB-001',
-        type: 'invoice',
-        description: 'Opening Balance',
-        debit: 1500,
-        credit: 0,
-        balance: 1500
+        id: 'vl-init-1',
+        vendorId: 'v1',
+        date: new Date(Date.now() - 86400000 * 10).toISOString(),
+        refId: 'PB-001',
+        type: 'purchase',
+        description: 'Opening Balance (Initial Inventory)',
+        debit: 0,
+        credit: 5000,
+        balance: 5000
       }
     ];
 
+    setVendors(demoVendors);
     setProducts(demoProducts);
     setCustomers(demoCustomers);
-    setLedger(demoLedger);
+    setVendorLedger(demoVendorLedger);
   }, []);
 
   const login = async (email: string, password: string) => {
     const mockUser: User = { 
-      id: 'u1', 
-      name: 'Admin User', 
-      email, 
-      shopName: 'My Premium Shop',
-      address: 'Building 40, Street 5, Blue Area, Islamabad',
-      phone: '+92 300 1234567',
-      nextInvoiceNumber: 1,
-      invoicePrefix: 'INV',
-      primaryColor: '#2563eb'
+      id: 'u1', name: 'Admin User', email, shopName: 'My Premium Shop', address: 'Industrial Area, Islamabad', phone: '+92 300 1234567', nextInvoiceNumber: 1, invoicePrefix: 'INV', primaryColor: '#2563eb'
     };
     setUser(mockUser);
     localStorage.setItem('inventory_user', JSON.stringify(mockUser));
@@ -101,15 +105,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const signup = async (name: string, email: string, shopName: string, password: string) => {
     const mockUser: User = { 
-      id: 'u1', 
-      name, 
-      email, 
-      shopName,
-      address: '',
-      phone: '',
-      nextInvoiceNumber: 1,
-      invoicePrefix: 'INV',
-      primaryColor: '#2563eb'
+      id: 'u1', name, email, shopName, address: '', phone: '', nextInvoiceNumber: 1, invoicePrefix: 'INV', primaryColor: '#2563eb'
     };
     setUser(mockUser);
     localStorage.setItem('inventory_user', JSON.stringify(mockUser));
@@ -129,6 +125,46 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     });
   };
 
+  const addVendor = (v: Omit<Vendor, 'id' | 'totalBalance'>) => {
+    const newVendor = { ...v, id: Math.random().toString(36).substr(2, 9), totalBalance: 0 };
+    setVendors(prev => [...prev, newVendor]);
+  };
+
+  const updateVendor = (v: Vendor) => {
+    setVendors(prev => prev.map(item => item.id === v.id ? v : item));
+    setProducts(prev => prev.map(p => p.vendorId === v.id ? { ...p, vendorName: v.name } : p));
+  };
+
+  const deleteVendor = (id: string) => {
+    setVendors(prev => prev.filter(v => v.id !== id));
+    setProducts(prev => prev.map(p => p.vendorId === id ? { ...p, vendorId: undefined, vendorName: undefined } : p));
+  };
+
+  const addVendorPayment = (pay: { vendorId: string, amount: number, method: string, date: string, note?: string }) => {
+    const paymentId = Math.random().toString(36).substr(2, 9);
+    
+    setVendors(prevVendors => {
+      const vendor = prevVendors.find(v => v.id === pay.vendorId);
+      const currentBalance = vendor?.totalBalance || 0;
+      const newBalance = currentBalance - pay.amount;
+
+      const newEntry: VendorLedgerEntry = {
+        id: paymentId,
+        vendorId: pay.vendorId,
+        date: pay.date,
+        refId: paymentId,
+        type: 'payment',
+        description: `Payment via ${pay.method}${pay.note ? `: ${pay.note}` : ''}`,
+        debit: pay.amount,
+        credit: 0,
+        balance: newBalance
+      };
+
+      setVendorLedger(prev => [...prev, newEntry]);
+      return prevVendors.map(v => v.id === pay.vendorId ? { ...v, totalBalance: newBalance } : v);
+    });
+  };
+
   const addProduct = (p: Omit<Product, 'id' | 'movements' | 'createdAt'>) => {
     const now = new Date().toISOString();
     const productId = Math.random().toString(36).substr(2, 9);
@@ -140,28 +176,77 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       reason: 'Initial Stock Addition'
     };
     const newProduct: Product = { 
-      ...p, 
-      id: productId, 
-      createdAt: now,
-      movements: [newMovement]
+      ...p, id: productId, createdAt: now, movements: [newMovement]
     };
+
+    // Record in vendor ledger if vendor selected
+    if (p.vendorId && p.stockQuantity > 0) {
+      const cost = p.purchasePrice * p.stockQuantity;
+      setVendors(prevVendors => {
+        const vendor = prevVendors.find(v => v.id === p.vendorId);
+        const currentBalance = vendor?.totalBalance || 0;
+        const newBalance = currentBalance + cost;
+
+        const newEntry: VendorLedgerEntry = {
+          id: Math.random().toString(36).substr(2, 9),
+          vendorId: p.vendorId!,
+          date: now,
+          refId: productId,
+          type: 'purchase',
+          description: `Initial Stock: ${p.name} (x${p.stockQuantity})`,
+          debit: 0,
+          credit: cost,
+          balance: newBalance
+        };
+
+        setVendorLedger(prev => [...prev, newEntry]);
+        return prevVendors.map(v => v.id === p.vendorId ? { ...v, totalBalance: newBalance } : v);
+      });
+    }
+
     setProducts(prev => [...prev, newProduct]);
   };
 
   const updateProduct = (p: Product, movementReason: string = 'Update') => {
-    setProducts(prev => prev.map(item => {
+    setProducts(prevProducts => prevProducts.map(item => {
       if (item.id === p.id) {
         const diff = p.stockQuantity - item.stockQuantity;
         const movements = [...item.movements];
+        const now = new Date().toISOString();
         
         if (diff !== 0) {
           movements.push({
             id: Math.random().toString(36).substr(2, 9),
             type: diff > 0 ? 'in' : 'out',
             quantity: Math.abs(diff),
-            date: new Date().toISOString(),
+            date: now,
             reason: movementReason
           });
+
+          // If stock increased and vendor is linked, record as purchase
+          if (diff > 0 && p.vendorId) {
+            const cost = p.purchasePrice * diff;
+            setVendors(prevVendors => {
+              const vendor = prevVendors.find(v => v.id === p.vendorId);
+              const currentBalance = vendor?.totalBalance || 0;
+              const newBalance = currentBalance + cost;
+
+              const newEntry: VendorLedgerEntry = {
+                id: Math.random().toString(36).substr(2, 9),
+                vendorId: p.vendorId!,
+                date: now,
+                refId: `PUR-${p.sku}`,
+                type: 'purchase',
+                description: `Stock Purchase: ${p.name} (x${diff})`,
+                debit: 0,
+                credit: cost,
+                balance: newBalance
+              };
+
+              setVendorLedger(prevLedger => [...prevLedger, newEntry]);
+              return prevVendors.map(v => v.id === p.vendorId ? { ...v, totalBalance: newBalance } : v);
+            });
+          }
         }
         
         return { ...p, movements };
@@ -184,27 +269,15 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const prefix = user?.invoicePrefix || 'INV';
     const invoiceNumber = `${prefix}-${currentSeq.toString().padStart(5, '0')}`;
     const invoiceId = Math.random().toString(36).substr(2, 9);
-    
-    // Use user-provided date or fallback to now
     const transactionDate = inv.date || new Date().toISOString();
 
     const itemsWithCost = inv.items.map(item => {
       const prod = products.find(p => p.id === item.productId);
-      return {
-        ...item,
-        purchasePrice: prod ? prod.purchasePrice : 0
-      };
+      return { ...item, purchasePrice: prod ? prod.purchasePrice : 0 };
     });
 
-    const newInvoice: Invoice = { 
-      ...inv, 
-      date: transactionDate,
-      items: itemsWithCost,
-      id: invoiceId, 
-      invoiceNumber 
-    };
+    const newInvoice: Invoice = { ...inv, date: transactionDate, items: itemsWithCost, id: invoiceId, invoiceNumber };
 
-    // 1. ATOMIC INVENTORY REDUCTION & MOVEMENT LOGGING
     setProducts(prevProducts => prevProducts.map(prod => {
       const soldItem = inv.items.find(item => item.productId === prod.id);
       if (soldItem) {
@@ -216,11 +289,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           reason: `Sale (Invoice ${invoiceNumber})`,
           referenceId: invoiceId
         };
-        return { 
-          ...prod, 
-          stockQuantity: Math.max(0, prod.stockQuantity - soldItem.quantity),
-          movements: [...prod.movements, newMovement]
-        };
+        return { ...prod, stockQuantity: Math.max(0, prod.stockQuantity - soldItem.quantity), movements: [...prod.movements, newMovement] };
       }
       return prod;
     }));
@@ -231,7 +300,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setCustomers(prevCustomers => {
       const targetCustomer = prevCustomers.find(c => c.id === newInvoice.customerId);
       const currentOutstanding = targetCustomer?.totalOutstanding || 0;
-      
       const newEntry: LedgerEntry = {
         id: Math.random().toString(36).substr(2, 9),
         customerId: newInvoice.customerId,
@@ -243,11 +311,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         credit: newInvoice.paidAmount,
         balance: currentOutstanding + netDebt
       };
-      
       setLedger(prevLedger => [...prevLedger, newEntry]);
-      return prevCustomers.map(c => 
-        c.id === newInvoice.customerId ? { ...c, totalOutstanding: c.totalOutstanding + netDebt } : c
-      );
+      return prevCustomers.map(c => c.id === newInvoice.customerId ? { ...c, totalOutstanding: c.totalOutstanding + netDebt } : c);
     });
 
     updateUser({ nextInvoiceNumber: currentSeq + 1 });
@@ -262,7 +327,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setCustomers(prevCustomers => {
       const targetCustomer = prevCustomers.find(c => c.id === newPayment.customerId);
       const currentOutstanding = targetCustomer?.totalOutstanding || 0;
-      
       const newEntry: LedgerEntry = {
         id: Math.random().toString(36).substr(2, 9),
         customerId: newPayment.customerId,
@@ -274,21 +338,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         credit: newPayment.amount,
         balance: currentOutstanding - newPayment.amount
       };
-      
       setLedger(prevLedger => [...prevLedger, newEntry]);
-      return prevCustomers.map(c => 
-        c.id === newPayment.customerId ? { ...c, totalOutstanding: c.totalOutstanding - newPayment.amount } : c
-      );
+      return prevCustomers.map(c => c.id === newPayment.customerId ? { ...c, totalOutstanding: c.totalOutstanding - newPayment.amount } : c);
     });
   };
 
   const addReminder = (r: Omit<PaymentReminder, 'id' | 'status' | 'createdAt'>) => {
-    const newReminder: PaymentReminder = {
-      ...r,
-      id: Math.random().toString(36).substr(2, 9),
-      status: 'pending',
-      createdAt: new Date().toISOString()
-    };
+    const newReminder: PaymentReminder = { ...r, id: Math.random().toString(36).substr(2, 9), status: 'pending', createdAt: new Date().toISOString() };
     setReminders(prev => [...prev, newReminder]);
   };
 
@@ -302,10 +358,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   return (
     <AppContext.Provider value={{
-      user, products, customers, invoices, ledger, payments, reminders,
+      user, products, customers, vendors, invoices, ledger, vendorLedger, payments, reminders,
       isAuthenticated: !!user,
       login, signup, logout, updateUser,
-      addProduct, updateProduct, deleteProduct, addCustomer, createInvoice, addPayment,
+      addProduct, updateProduct, deleteProduct, addCustomer,
+      addVendor, updateVendor, deleteVendor, addVendorPayment,
+      createInvoice, addPayment,
       addReminder, markReminderAsSent, deleteReminder
     }}>
       {children}

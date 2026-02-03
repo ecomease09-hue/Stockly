@@ -23,6 +23,16 @@ export interface StockMovement {
   referenceId?: string; // e.g., Invoice ID
 }
 
+export interface Vendor {
+  id: string;
+  name: string;
+  contactPerson: string;
+  phone: string;
+  email: string;
+  address: string;
+  totalBalance: number; // Amount owed to vendor
+}
+
 export interface Product {
   id: string;
   name: string;
@@ -33,6 +43,8 @@ export interface Product {
   lowStockThreshold: number;
   movements: StockMovement[]; // Track history of stock changes
   createdAt: string;
+  vendorId?: string;
+  vendorName?: string;
 }
 
 export interface Customer {
@@ -70,7 +82,7 @@ export interface Invoice {
   notes?: string;
 }
 
-export type LedgerEntryType = 'invoice' | 'payment';
+export type LedgerEntryType = 'invoice' | 'payment' | 'purchase';
 
 export interface LedgerEntry {
   id: string;
@@ -82,6 +94,18 @@ export interface LedgerEntry {
   debit: number; 
   credit: number; 
   balance: number; 
+}
+
+export interface VendorLedgerEntry {
+  id: string;
+  vendorId: string;
+  date: string;
+  refId: string;
+  type: 'purchase' | 'payment';
+  description: string;
+  debit: number; // Payment made to vendor (decreases balance)
+  credit: number; // Purchase made from vendor (increases balance)
+  balance: number;
 }
 
 export interface Payment {
