@@ -21,7 +21,8 @@ import {
   Box,
   LayoutGrid,
   Clock,
-  ArrowRight
+  ArrowRight,
+  Download
 } from 'lucide-react';
 import { 
   PieChart as RePieChart, 
@@ -40,10 +41,35 @@ import {
 } from 'recharts';
 
 const Reports: React.FC = () => {
-  const { invoices, products, customers } = useApp();
+  const { invoices, products, customers, user } = useApp();
 
   // Filter States
   const [activeView, setActiveView] = useState<'daily' | 'monthly'>('daily');
+
+  // CSV Export Utility
+  const downloadCSV = (data: any[], headers: string[], filename: string) => {
+    const csvRows = [];
+    csvRows.push(headers.join(','));
+
+    for (const row of data) {
+      const values = headers.map(header => {
+        const val = row[header.toLowerCase().replace(/\s/g, '')] || row[header];
+        const escaped = ('' + val).replace(/"/g, '\\"');
+        return `"${escaped}"`;
+      });
+      csvRows.push(values.join(','));
+    }
+
+    const blob = new Blob([csvRows.join('\n')], { type: 'text/csv' });
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.setAttribute('hidden', '');
+    a.setAttribute('href', url);
+    a.setAttribute('download', `${filename}_${new Date().toISOString().split('T')[0]}.csv`);
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+  };
 
   // Helper for calculating true net profit from invoices using stored cost prices
   const calculateInvoiceProfit = (inv: any) => {
@@ -70,7 +96,6 @@ const Reports: React.FC = () => {
 
     invoices.forEach(inv => {
       const date = inv.date.split('T')[0];
-      const displayDate = new Date(date).toLocaleDateString('en-US', { day: 'numeric', month: 'short' });
       if (map[date]) {
         map[date].revenue += inv.total;
         map[date].profit += calculateInvoiceProfit(inv);
@@ -122,6 +147,17 @@ const Reports: React.FC = () => {
   const inventoryAssetsValue = useMemo(() => products.reduce((sum, p) => sum + (p.purchasePrice * p.stockQuantity), 0), [products]);
   const totalOutstanding = useMemo(() => customers.reduce((s, c) => s + c.totalOutstanding, 0), [customers]);
 
+  const handleExportPerformance = () => {
+    const data = activeView === 'daily' ? dailyProfitData : monthlyProfitData;
+    const headers = activeView === 'daily' ? ['Date', 'Revenue', 'Profit'] : ['Month', 'Revenue', 'Profit'];
+    downloadCSV(data, headers, `${user?.shopName}_Performance_${activeView.toUpperCase()}`);
+  };
+
+  const handleExportInventory = () => {
+    const headers = ['SKU', 'Name', 'Remaining', 'Cost Value', 'Retail Value', 'Potential Profit', 'Status'];
+    downloadCSV(skuInventoryReport, headers, `${user?.shopName}_Inventory_Valuation`);
+  };
+
   return (
     <div className="space-y-8 pb-20 animate-in fade-in duration-500">
       {/* Header */}
@@ -145,7 +181,7 @@ const Reports: React.FC = () => {
               Monthly Growth
             </button>
           </div>
-          <button onClick={() => window.print()} className="bg-blue-600 text-white p-4 rounded-2xl shadow-xl shadow-blue-100 hover:bg-blue-700 transition-all active:scale-95 no-print">
+          <button onClick={() => window.print()} className="bg-blue-600 text-white p-4 rounded-2xl shadow-xl shadow-blue-100 hover:bg-blue-700 transition-all active:scale-95 no-print" title="Print Report">
             <FileDown className="w-5 h-5" />
           </button>
         </div>
@@ -199,6 +235,13 @@ const Reports: React.FC = () => {
               </h3>
               <p className="text-[10px] text-slate-400 font-black uppercase tracking-[0.2em] mt-1">Net Revenue vs Realized Profit</p>
             </div>
+            <button 
+              onClick={handleExportPerformance}
+              className="bg-white border-2 border-slate-100 p-3 rounded-xl text-slate-400 hover:text-blue-600 hover:border-blue-100 transition-all active:scale-90"
+              title="Export Chart Data as CSV"
+            >
+              <Download className="w-5 h-5" />
+            </button>
           </div>
           <div className="h-[350px] w-full relative z-10">
             <ResponsiveContainer width="100%" height="100%">
@@ -295,7 +338,13 @@ const Reports: React.FC = () => {
             <p className="text-[10px] text-slate-400 font-black uppercase tracking-[0.2em] mt-2">In-depth stock valuation and capital liquidity</p>
           </div>
           <div className="flex items-center gap-4">
-            <div className="px-6 py-3 bg-white border-2 rounded-2xl text-[10px] font-black text-slate-600 shadow-sm uppercase tracking-widest">
+            <button 
+              onClick={handleExportInventory}
+              className="px-6 py-3 bg-white border-2 rounded-2xl text-[10px] font-black text-slate-600 shadow-sm uppercase tracking-widest flex items-center gap-3 hover:bg-slate-50 hover:border-slate-200 transition-all active:scale-95 no-print"
+            >
+              <Download className="w-4 h-4 text-blue-500" /> Export Asset List
+            </button>
+            <div className="px-6 py-3 bg-slate-900 border-2 border-slate-900 rounded-2xl text-[10px] font-black text-white shadow-xl uppercase tracking-widest">
               {products.length} Unique Main SKUs
             </div>
           </div>
