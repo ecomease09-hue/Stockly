@@ -14,7 +14,9 @@ import {
   LogOut,
   UserCircle,
   Truck,
-  Wallet2
+  Wallet2,
+  Crown,
+  Sparkles
 } from 'lucide-react';
 
 const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
@@ -24,7 +26,6 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
 
   const handleLogout = () => {
     logout();
-    // App.tsx handles the ProtectedRoute redirect based on isAuthenticated state
   };
 
   const navItems = [
@@ -63,12 +64,19 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
             <Package className="w-8 h-8 text-blue-400" />
             <span>Stockly</span>
           </h1>
-          <p className="text-xs text-slate-400 mt-1 uppercase tracking-widest font-bold">
-            {user?.shopName || 'Smart Shop'}
-          </p>
+          <div className="flex items-center gap-2 mt-2">
+            <p className="text-[10px] text-slate-400 uppercase tracking-widest font-black truncate max-w-[120px]">
+              {user?.shopName || 'Smart Shop'}
+            </p>
+            {user?.plan !== 'free' && (
+              <span className="bg-blue-600 text-[8px] font-black text-white px-2 py-0.5 rounded-full uppercase">
+                {user?.plan}
+              </span>
+            )}
+          </div>
         </div>
 
-        <nav className="flex-1 px-4 space-y-1 overflow-y-auto">
+        <nav className="flex-1 px-4 space-y-1 overflow-y-auto custom-scrollbar pb-8">
           {navItems.map((item) => (
             <NavLink
               key={item.to}
@@ -83,6 +91,21 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
               <span className="font-medium">{item.label}</span>
             </NavLink>
           ))}
+          
+          <div className="mt-6 pt-6 border-t border-slate-800">
+             <NavLink
+                to="/pricing"
+                onClick={() => setSidebarOpen(false)}
+                className={({ isActive }) => `
+                  flex items-center gap-3 px-4 py-3 rounded-xl transition-all relative group overflow-hidden
+                  ${isActive ? 'bg-amber-600 text-white shadow-lg' : 'bg-blue-900/20 border border-blue-900/50 text-blue-400 hover:bg-blue-900/40'}
+                `}
+              >
+                <Crown className={`w-5 h-5 ${user?.plan === 'free' ? 'animate-pulse' : ''}`} />
+                <span className="font-black uppercase tracking-widest text-[10px]">Upgrade Center</span>
+                <Sparkles className="absolute right-4 w-4 h-4 opacity-20 group-hover:opacity-100 transition-opacity" />
+              </NavLink>
+          </div>
         </nav>
 
         <div className="p-4 border-t border-slate-800 space-y-2">
@@ -92,7 +115,7 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
             </div>
             <div className="flex-1 min-w-0">
               <p className="text-sm font-bold text-white truncate">{user?.name || 'Admin User'}</p>
-              <p className="text-xs text-slate-500 truncate">{user?.email}</p>
+              <p className="text-[10px] text-slate-500 truncate uppercase font-black tracking-widest">{user?.plan} Membership</p>
             </div>
           </div>
           

@@ -14,6 +14,7 @@ import Reports from './components/Reports';
 import UserDetails from './components/UserDetails';
 import Login from './components/Login';
 import SignUp from './components/SignUp';
+import Pricing from './components/Pricing';
 
 const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { isAuthenticated } = useApp();
@@ -43,6 +44,7 @@ const AppContent: React.FC = () => {
         <Route path="/ledger" element={<ProtectedRoute><Layout><Ledger /></Layout></ProtectedRoute>} />
         <Route path="/reports" element={<ProtectedRoute><Layout><Reports /></Layout></ProtectedRoute>} />
         <Route path="/profile" element={<ProtectedRoute><Layout><UserDetails /></Layout></ProtectedRoute>} />
+        <Route path="/pricing" element={<ProtectedRoute><Pricing /></ProtectedRoute>} />
         
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>

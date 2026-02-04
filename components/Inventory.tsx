@@ -20,12 +20,15 @@ import {
   Square,
   Layers,
   ChevronRight,
-  Calculator
+  Calculator,
+  Rocket,
+  ArrowRight,
+  AlertCircle
 } from 'lucide-react';
 import { Product, StockMovement } from '../types';
 
 const Inventory: React.FC = () => {
-  const { products, vendors, addProduct, updateProduct, deleteProduct } = useApp();
+  const { products, vendors, addProduct, updateProduct, deleteProduct, checkLimit } = useApp();
   const navigate = useNavigate();
   
   // Selection State
@@ -36,6 +39,7 @@ const Inventory: React.FC = () => {
   const [isRestockModalOpen, setIsRestockModalOpen] = useState(false);
   const [isBulkRestockModalOpen, setIsBulkRestockModalOpen] = useState(false);
   const [isHistoryModalOpen, setIsHistoryModalOpen] = useState(false);
+  const [isLimitModalOpen, setIsLimitModalOpen] = useState(false);
   
   // Data States
   const [searchTerm, setSearchTerm] = useState('');
@@ -67,6 +71,13 @@ const Inventory: React.FC = () => {
   };
 
   const handleOpenModal = (p: Product | null = null) => {
+    if (!p) {
+      const { allowed } = checkLimit('products');
+      if (!allowed) {
+        setIsLimitModalOpen(true);
+        return;
+      }
+    }
     setEditingProduct(p);
     setIsModalOpen(true);
   };
@@ -301,6 +312,38 @@ const Inventory: React.FC = () => {
           </div>
         )}
       </div>
+
+      {/* Quota Exceeded Modal */}
+      {isLimitModalOpen && (
+        <div className="fixed inset-0 z-[120] flex items-center justify-center p-4 bg-slate-900/90 backdrop-blur-md animate-in fade-in duration-300">
+           <div className="bg-white rounded-[3.5rem] shadow-3xl w-full max-w-md overflow-hidden animate-in zoom-in duration-500">
+              <div className="p-10 border-b flex items-center justify-between">
+                 <div className="w-12 h-12 bg-rose-50 text-rose-500 rounded-2xl flex items-center justify-center border border-rose-100 shadow-inner">
+                    <AlertCircle className="w-6 h-6" />
+                 </div>
+                 <button onClick={() => setIsLimitModalOpen(false)} className="p-3 hover:bg-slate-50 rounded-xl transition-all">
+                    <X className="w-6 h-6 text-slate-300" />
+                 </button>
+              </div>
+              <div className="p-10 text-center space-y-8">
+                 <div className="w-20 h-20 bg-blue-600 text-white rounded-3xl flex items-center justify-center mx-auto shadow-2xl shadow-blue-200 animate-badge-bump">
+                    <Rocket className="w-10 h-10" />
+                 </div>
+                 <div>
+                    <h3 className="text-2xl font-black text-slate-900 tracking-tighter uppercase mb-2">Quota Reached</h3>
+                    <p className="text-slate-500 font-bold leading-relaxed italic">You have hit the capacity limit for your current plan. Upgrade to a professional tier to unlock more asset slots.</p>
+                 </div>
+                 <button 
+                  onClick={() => navigate('/pricing')}
+                  className="w-full py-5 bg-slate-900 text-white rounded-2xl font-black text-xs uppercase tracking-[0.2em] shadow-2xl hover:bg-black transition-all active:scale-95 flex items-center justify-center gap-3"
+                 >
+                    Explore Upgrade Options <ArrowRight className="w-4 h-4" />
+                 </button>
+                 <p className="text-[10px] font-black text-slate-300 uppercase tracking-widest">Starting from PKR 999/month</p>
+              </div>
+           </div>
+        </div>
+      )}
 
       {/* Bulk Restock Modal */}
       {isBulkRestockModalOpen && (

@@ -5,6 +5,12 @@ import { Product, Customer, Invoice, LedgerEntry, Payment, PaymentReminder, User
 // Declare netlifyIdentity for the global window object
 declare const netlifyIdentity: any;
 
+export const PLAN_LIMITS = {
+  free: { products: 20, vendors: 5, customers: 10 },
+  pro: { products: 100, vendors: 20, customers: 50 },
+  premium: { products: Infinity, vendors: Infinity, customers: Infinity }
+};
+
 interface AppContextType {
   user: User | null;
   products: Product[];
@@ -19,6 +25,8 @@ interface AppContextType {
   openAuth: () => void;
   logout: () => void;
   updateUser: (updates: Partial<User>) => void;
+  checkLimit: (type: 'products' | 'vendors' | 'customers') => { allowed: boolean; limit: number; current: number };
+  upgradePlan: (plan: 'pro' | 'premium', method: string) => void;
   addProduct: (product: Omit<Product, 'id' | 'movements' | 'createdAt'>) => void;
   updateProduct: (product: Product, movementReason?: string) => void;
   deleteProduct: (id: string) => void;
@@ -68,7 +76,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
       const handleLogin = (netlifyUser: any) => {
         if (netlifyUser) {
-          // Reset state to ensure fresh data for new login
           resetAppState();
           
           const appUser: User = {
@@ -81,6 +88,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             primaryColor: localStorage.getItem(`primary_color_${netlifyUser.id}`) || '#2563eb',
             address: localStorage.getItem(`address_${netlifyUser.id}`) || '',
             phone: localStorage.getItem(`phone_${netlifyUser.id}`) || '',
+            plan: (localStorage.getItem(`plan_${netlifyUser.id}`) as any) || 'free',
+            subscriptionStatus: (localStorage.getItem(`sub_status_${netlifyUser.id}`) as any) || 'inactive',
+            planExpiryDate: localStorage.getItem(`expiry_${netlifyUser.id}`) || undefined,
           };
           setUser(appUser);
           setIsAuthenticated(true);
@@ -92,7 +102,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         setUser(null);
         setIsAuthenticated(false);
         resetAppState();
-        // Force the login popup to reappear as per requirements
         netlifyIdentity.open();
       };
 
@@ -103,7 +112,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       if (currentUser) {
         handleLogin(currentUser);
       } else {
-        // Automatically open the login/signup popup if not logged in
         netlifyIdentity.open();
       }
     }
@@ -131,7 +139,32 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       if (updates.primaryColor) localStorage.setItem(`primary_color_${prev.id}`, updates.primaryColor);
       if (updates.address) localStorage.setItem(`address_${prev.id}`, updates.address);
       if (updates.phone) localStorage.setItem(`phone_${prev.id}`, updates.phone);
+      if (updates.plan) localStorage.setItem(`plan_${prev.id}`, updates.plan);
+      if (updates.subscriptionStatus) localStorage.setItem(`sub_status_${prev.id}`, updates.subscriptionStatus);
+      if (updates.planExpiryDate) localStorage.setItem(`expiry_${prev.id}`, updates.planExpiryDate);
       return updated;
+    });
+  };
+
+  const checkLimit = (type: 'products' | 'vendors' | 'customers') => {
+    const plan = user?.plan || 'free';
+    const limit = (PLAN_LIMITS[plan] as any)[type];
+    const current = type === 'products' ? products.length : type === 'vendors' ? vendors.length : customers.length;
+    return {
+      allowed: current < limit,
+      limit,
+      current
+    };
+  };
+
+  const upgradePlan = (plan: 'pro' | 'premium', method: string) => {
+    const expiryDate = new Date();
+    expiryDate.setDate(expiryDate.getDate() + 30);
+    
+    updateUser({
+      plan,
+      subscriptionStatus: 'active',
+      planExpiryDate: expiryDate.toISOString()
     });
   };
 
@@ -347,7 +380,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     <AppContext.Provider value={{
       user, products, customers, vendors, invoices, ledger, vendorLedger, payments, reminders,
       isAuthenticated,
-      openAuth, logout, updateUser,
+      openAuth, logout, updateUser, checkLimit, upgradePlan,
       addProduct, updateProduct, deleteProduct, addCustomer,
       addVendor, updateVendor, deleteVendor, addVendorPayment,
       createInvoice, addPayment,

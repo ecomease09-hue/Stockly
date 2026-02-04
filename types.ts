@@ -10,6 +10,9 @@ export interface User {
   nextInvoiceNumber: number;
   invoicePrefix: string;
   primaryColor?: string;
+  plan: 'free' | 'pro' | 'premium';
+  subscriptionStatus: 'active' | 'inactive';
+  planExpiryDate?: string;
 }
 
 export type StockMovementType = 'in' | 'out';
