@@ -49,19 +49,33 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [payments, setPayments] = useState<Payment[]>([]);
   const [reminders, setReminders] = useState<PaymentReminder[]>([]);
 
+  const resetAppState = () => {
+    setProducts([]);
+    setCustomers([]);
+    setVendors([]);
+    setInvoices([]);
+    setLedger([]);
+    setVendorLedger([]);
+    setPayments([]);
+    setReminders([]);
+    localStorage.clear();
+  };
+
   // Netlify Identity Integration
   useEffect(() => {
-    // 1. Initialize Netlify Identity
     if (typeof netlifyIdentity !== 'undefined') {
       netlifyIdentity.init();
 
       const handleLogin = (netlifyUser: any) => {
         if (netlifyUser) {
+          // Reset state to ensure fresh data for new login
+          resetAppState();
+          
           const appUser: User = {
             id: netlifyUser.id,
             name: netlifyUser.user_metadata?.full_name || netlifyUser.email.split('@')[0],
             email: netlifyUser.email,
-            shopName: localStorage.getItem(`shop_name_${netlifyUser.id}`) || 'My Premium Shop',
+            shopName: localStorage.getItem(`shop_name_${netlifyUser.id}`) || 'New Business Terminal',
             nextInvoiceNumber: parseInt(localStorage.getItem(`next_inv_${netlifyUser.id}`) || '1'),
             invoicePrefix: localStorage.getItem(`inv_prefix_${netlifyUser.id}`) || 'INV',
             primaryColor: localStorage.getItem(`primary_color_${netlifyUser.id}`) || '#2563eb',
@@ -77,52 +91,23 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       const handleLogout = () => {
         setUser(null);
         setIsAuthenticated(false);
+        resetAppState();
+        // Force the login popup to reappear as per requirements
+        netlifyIdentity.open();
       };
 
-      // Listen for events
       netlifyIdentity.on('login', handleLogin);
       netlifyIdentity.on('logout', handleLogout);
       
-      // On Init, check if user is already logged in
       const currentUser = netlifyIdentity.currentUser();
       if (currentUser) {
         handleLogin(currentUser);
+      } else {
+        // Automatically open the login/signup popup if not logged in
+        netlifyIdentity.open();
       }
     }
   }, []);
-
-  // Demo Data Initialization (only if authenticated)
-  useEffect(() => {
-    if (!isAuthenticated) return;
-
-    const now = new Date().toISOString();
-    
-    const demoVendors: Vendor[] = [
-      { id: 'v1', name: 'Global Foods Ltd', contactPerson: 'Mark Supplier', phone: '555-9000', email: 'sales@globalfoods.com', address: 'Industrial Area Phase 1', totalBalance: 5000 },
-      { id: 'v2', name: 'Agro Distributors', contactPerson: 'Sarah Seed', phone: '555-8000', email: 'sarah@agro.com', address: 'North Farm Road', totalBalance: 0 }
-    ];
-
-    const demoProducts: Product[] = [
-      { 
-        id: '1', name: 'Premium Rice 5kg', sku: 'RICE-001', purchasePrice: 400, salePrice: 550, stockQuantity: 50, lowStockThreshold: 10, createdAt: now,
-        vendorId: 'v1', vendorName: 'Global Foods Ltd',
-        movements: [{ id: 'm1', type: 'in', quantity: 50, date: now, reason: 'Initial Stock' }]
-      },
-      { 
-        id: '2', name: 'Cooking Oil 1L', sku: 'OIL-102', purchasePrice: 150, salePrice: 185, stockQuantity: 8, lowStockThreshold: 10, createdAt: now,
-        vendorId: 'v1', vendorName: 'Global Foods Ltd',
-        movements: [{ id: 'm2', type: 'in', quantity: 8, date: now, reason: 'Initial Stock' }]
-      },
-    ];
-    
-    const demoCustomers: Customer[] = [
-      { id: 'c1', name: 'John Doe', phone: '555-0101', address: '123 Main St', totalOutstanding: 1500 },
-    ];
-
-    setVendors(demoVendors);
-    setProducts(demoProducts);
-    setCustomers(demoCustomers);
-  }, [isAuthenticated]);
 
   const openAuth = () => {
     if (typeof netlifyIdentity !== 'undefined') {

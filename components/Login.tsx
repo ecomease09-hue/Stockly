@@ -26,7 +26,7 @@ const Login: React.FC = () => {
             onClick={openAuth}
             className="w-full bg-slate-900 text-white py-6 rounded-[2rem] font-black uppercase tracking-[0.2em] text-xs flex items-center justify-center gap-4 hover:bg-black shadow-2xl transition-all active:scale-95 group"
           >
-            Login / Sign Up <ArrowRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
+            Login / Signup <ArrowRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
           </button>
 
           <div className="mt-10 pt-10 border-t border-slate-50 flex flex-col items-center gap-4">
