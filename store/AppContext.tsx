@@ -2,6 +2,9 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { Product, Customer, Invoice, LedgerEntry, Payment, PaymentReminder, User, StockMovement, Vendor, VendorLedgerEntry } from '../types';
 
+// Declare netlifyIdentity for the global window object
+declare const netlifyIdentity: any;
+
 interface AppContextType {
   user: User | null;
   products: Product[];
@@ -13,8 +16,7 @@ interface AppContextType {
   payments: Payment[];
   reminders: PaymentReminder[];
   isAuthenticated: boolean;
-  login: (email: string, password: string) => Promise<void>;
-  signup: (name: string, email: string, shopName: string, password: string) => Promise<void>;
+  openAuth: () => void;
   logout: () => void;
   updateUser: (updates: Partial<User>) => void;
   addProduct: (product: Omit<Product, 'id' | 'movements' | 'createdAt'>) => void;
@@ -36,6 +38,8 @@ const AppContext = createContext<AppContextType | undefined>(undefined);
 
 export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  
   const [products, setProducts] = useState<Product[]>([]);
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [vendors, setVendors] = useState<Vendor[]>([]);
@@ -45,12 +49,52 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [payments, setPayments] = useState<Payment[]>([]);
   const [reminders, setReminders] = useState<PaymentReminder[]>([]);
 
+  // Netlify Identity Integration
   useEffect(() => {
-    const savedUser = localStorage.getItem('inventory_user');
-    if (savedUser) {
-      setUser(JSON.parse(savedUser));
+    // 1. Initialize Netlify Identity
+    if (typeof netlifyIdentity !== 'undefined') {
+      netlifyIdentity.init();
+
+      const handleLogin = (netlifyUser: any) => {
+        if (netlifyUser) {
+          const appUser: User = {
+            id: netlifyUser.id,
+            name: netlifyUser.user_metadata?.full_name || netlifyUser.email.split('@')[0],
+            email: netlifyUser.email,
+            shopName: localStorage.getItem(`shop_name_${netlifyUser.id}`) || 'My Premium Shop',
+            nextInvoiceNumber: parseInt(localStorage.getItem(`next_inv_${netlifyUser.id}`) || '1'),
+            invoicePrefix: localStorage.getItem(`inv_prefix_${netlifyUser.id}`) || 'INV',
+            primaryColor: localStorage.getItem(`primary_color_${netlifyUser.id}`) || '#2563eb',
+            address: localStorage.getItem(`address_${netlifyUser.id}`) || '',
+            phone: localStorage.getItem(`phone_${netlifyUser.id}`) || '',
+          };
+          setUser(appUser);
+          setIsAuthenticated(true);
+          netlifyIdentity.close();
+        }
+      };
+
+      const handleLogout = () => {
+        setUser(null);
+        setIsAuthenticated(false);
+      };
+
+      // Listen for events
+      netlifyIdentity.on('login', handleLogin);
+      netlifyIdentity.on('logout', handleLogout);
+      
+      // On Init, check if user is already logged in
+      const currentUser = netlifyIdentity.currentUser();
+      if (currentUser) {
+        handleLogin(currentUser);
+      }
     }
-    
+  }, []);
+
+  // Demo Data Initialization (only if authenticated)
+  useEffect(() => {
+    if (!isAuthenticated) return;
+
     const now = new Date().toISOString();
     
     const demoVendors: Vendor[] = [
@@ -75,52 +119,33 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       { id: 'c1', name: 'John Doe', phone: '555-0101', address: '123 Main St', totalOutstanding: 1500 },
     ];
 
-    const demoVendorLedger: VendorLedgerEntry[] = [
-      {
-        id: 'vl-init-1',
-        vendorId: 'v1',
-        date: new Date(Date.now() - 86400000 * 10).toISOString(),
-        refId: 'PB-001',
-        type: 'purchase',
-        description: 'Opening Balance (Initial Inventory)',
-        debit: 0,
-        credit: 5000,
-        balance: 5000
-      }
-    ];
-
     setVendors(demoVendors);
     setProducts(demoProducts);
     setCustomers(demoCustomers);
-    setVendorLedger(demoVendorLedger);
-  }, []);
+  }, [isAuthenticated]);
 
-  const login = async (email: string, password: string) => {
-    const mockUser: User = { 
-      id: 'u1', name: 'Admin User', email, shopName: 'My Premium Shop', address: 'Industrial Area, Islamabad', phone: '+92 300 1234567', nextInvoiceNumber: 1, invoicePrefix: 'INV', primaryColor: '#2563eb'
-    };
-    setUser(mockUser);
-    localStorage.setItem('inventory_user', JSON.stringify(mockUser));
-  };
-
-  const signup = async (name: string, email: string, shopName: string, password: string) => {
-    const mockUser: User = { 
-      id: 'u1', name, email, shopName, address: '', phone: '', nextInvoiceNumber: 1, invoicePrefix: 'INV', primaryColor: '#2563eb'
-    };
-    setUser(mockUser);
-    localStorage.setItem('inventory_user', JSON.stringify(mockUser));
+  const openAuth = () => {
+    if (typeof netlifyIdentity !== 'undefined') {
+      netlifyIdentity.open();
+    }
   };
 
   const logout = () => {
-    setUser(null);
-    localStorage.removeItem('inventory_user');
+    if (typeof netlifyIdentity !== 'undefined') {
+      netlifyIdentity.logout();
+    }
   };
 
   const updateUser = (updates: Partial<User>) => {
     setUser(prev => {
       if (!prev) return null;
       const updated = { ...prev, ...updates };
-      localStorage.setItem('inventory_user', JSON.stringify(updated));
+      if (updates.shopName) localStorage.setItem(`shop_name_${prev.id}`, updates.shopName);
+      if (updates.nextInvoiceNumber) localStorage.setItem(`next_inv_${prev.id}`, updates.nextInvoiceNumber.toString());
+      if (updates.invoicePrefix) localStorage.setItem(`inv_prefix_${prev.id}`, updates.invoicePrefix);
+      if (updates.primaryColor) localStorage.setItem(`primary_color_${prev.id}`, updates.primaryColor);
+      if (updates.address) localStorage.setItem(`address_${prev.id}`, updates.address);
+      if (updates.phone) localStorage.setItem(`phone_${prev.id}`, updates.phone);
       return updated;
     });
   };
@@ -142,12 +167,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const addVendorPayment = (pay: { vendorId: string, amount: number, method: string, date: string, note?: string }) => {
     const paymentId = Math.random().toString(36).substr(2, 9);
-    
     setVendors(prevVendors => {
       const vendor = prevVendors.find(v => v.id === pay.vendorId);
       const currentBalance = vendor?.totalBalance || 0;
       const newBalance = currentBalance - pay.amount;
-
       const newEntry: VendorLedgerEntry = {
         id: paymentId,
         vendorId: pay.vendorId,
@@ -159,7 +182,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         credit: 0,
         balance: newBalance
       };
-
       setVendorLedger(prev => [...prev, newEntry]);
       return prevVendors.map(v => v.id === pay.vendorId ? { ...v, totalBalance: newBalance } : v);
     });
@@ -175,18 +197,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       date: now,
       reason: 'Initial Stock Addition'
     };
-    const newProduct: Product = { 
-      ...p, id: productId, createdAt: now, movements: [newMovement]
-    };
-
-    // Record in vendor ledger if vendor selected
+    const newProduct: Product = { ...p, id: productId, createdAt: now, movements: [newMovement] };
     if (p.vendorId && p.stockQuantity > 0) {
       const cost = p.purchasePrice * p.stockQuantity;
       setVendors(prevVendors => {
         const vendor = prevVendors.find(v => v.id === p.vendorId);
         const currentBalance = vendor?.totalBalance || 0;
         const newBalance = currentBalance + cost;
-
         const newEntry: VendorLedgerEntry = {
           id: Math.random().toString(36).substr(2, 9),
           vendorId: p.vendorId!,
@@ -198,12 +215,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           credit: cost,
           balance: newBalance
         };
-
         setVendorLedger(prev => [...prev, newEntry]);
         return prevVendors.map(v => v.id === p.vendorId ? { ...v, totalBalance: newBalance } : v);
       });
     }
-
     setProducts(prev => [...prev, newProduct]);
   };
 
@@ -213,7 +228,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         const diff = p.stockQuantity - item.stockQuantity;
         const movements = [...item.movements];
         const now = new Date().toISOString();
-        
         if (diff !== 0) {
           movements.push({
             id: Math.random().toString(36).substr(2, 9),
@@ -222,15 +236,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             date: now,
             reason: movementReason
           });
-
-          // If stock increased and vendor is linked, record as purchase
           if (diff > 0 && p.vendorId) {
             const cost = p.purchasePrice * diff;
             setVendors(prevVendors => {
               const vendor = prevVendors.find(v => v.id === p.vendorId);
               const currentBalance = vendor?.totalBalance || 0;
               const newBalance = currentBalance + cost;
-
               const newEntry: VendorLedgerEntry = {
                 id: Math.random().toString(36).substr(2, 9),
                 vendorId: p.vendorId!,
@@ -242,13 +253,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
                 credit: cost,
                 balance: newBalance
               };
-
               setVendorLedger(prevLedger => [...prevLedger, newEntry]);
               return prevVendors.map(v => v.id === p.vendorId ? { ...v, totalBalance: newBalance } : v);
             });
           }
         }
-        
         return { ...p, movements };
       }
       return item;
@@ -270,14 +279,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const invoiceNumber = `${prefix}-${currentSeq.toString().padStart(5, '0')}`;
     const invoiceId = Math.random().toString(36).substr(2, 9);
     const transactionDate = inv.date || new Date().toISOString();
-
     const itemsWithCost = inv.items.map(item => {
       const prod = products.find(p => p.id === item.productId);
       return { ...item, purchasePrice: prod ? prod.purchasePrice : 0 };
     });
-
     const newInvoice: Invoice = { ...inv, date: transactionDate, items: itemsWithCost, id: invoiceId, invoiceNumber };
-
     setProducts(prevProducts => prevProducts.map(prod => {
       const soldItem = inv.items.find(item => item.productId === prod.id);
       if (soldItem) {
@@ -293,9 +299,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       }
       return prod;
     }));
-
     setInvoices(prev => [...prev, newInvoice]);
-
     const netDebt = newInvoice.total - newInvoice.paidAmount;
     setCustomers(prevCustomers => {
       const targetCustomer = prevCustomers.find(c => c.id === newInvoice.customerId);
@@ -314,7 +318,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       setLedger(prevLedger => [...prevLedger, newEntry]);
       return prevCustomers.map(c => c.id === newInvoice.customerId ? { ...c, totalOutstanding: c.totalOutstanding + netDebt } : c);
     });
-
     updateUser({ nextInvoiceNumber: currentSeq + 1 });
     return newInvoice;
   };
@@ -323,7 +326,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const paymentId = Math.random().toString(36).substr(2, 9);
     const newPayment: Payment = { ...pay, id: paymentId };
     setPayments(prev => [...prev, newPayment]);
-
     setCustomers(prevCustomers => {
       const targetCustomer = prevCustomers.find(c => c.id === newPayment.customerId);
       const currentOutstanding = targetCustomer?.totalOutstanding || 0;
@@ -359,8 +361,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   return (
     <AppContext.Provider value={{
       user, products, customers, vendors, invoices, ledger, vendorLedger, payments, reminders,
-      isAuthenticated: !!user,
-      login, signup, logout, updateUser,
+      isAuthenticated,
+      openAuth, logout, updateUser,
       addProduct, updateProduct, deleteProduct, addCustomer,
       addVendor, updateVendor, deleteVendor, addVendorPayment,
       createInvoice, addPayment,

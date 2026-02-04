@@ -24,7 +24,7 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
 
   const handleLogout = () => {
     logout();
-    navigate('/login');
+    // App.tsx handles the ProtectedRoute redirect based on isAuthenticated state
   };
 
   const navItems = [

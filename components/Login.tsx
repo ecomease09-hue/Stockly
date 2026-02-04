@@ -1,89 +1,49 @@
 
-import React, { useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import React from 'react';
 import { useApp } from '../store/AppContext';
-import { Package, Mail, Lock, ArrowRight, Loader2 } from 'lucide-react';
+import { Package, ArrowRight, ShieldCheck, UserPlus } from 'lucide-react';
 
 const Login: React.FC = () => {
-  const { login } = useApp();
-  const navigate = useNavigate();
-  const [loading, setLoading] = useState(false);
-  const [formData, setFormData] = useState({ email: '', password: '' });
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setLoading(true);
-    try {
-      await login(formData.email, formData.password);
-      navigate('/');
-    } catch (error) {
-      alert('Login failed. Please try again.');
-    } finally {
-      setLoading(false);
-    }
-  };
+  const { openAuth } = useApp();
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-slate-50 p-4">
-      <div className="max-w-md w-full">
-        <div className="text-center mb-10">
-          <div className="inline-flex items-center justify-center w-16 h-16 bg-blue-600 rounded-2xl shadow-xl shadow-blue-200 mb-6 text-white">
-            <Package className="w-10 h-10" />
+      <div className="max-w-md w-full text-center">
+        <div className="inline-flex items-center justify-center w-24 h-24 bg-blue-600 rounded-[2.5rem] shadow-2xl shadow-blue-200 mb-10 text-white animate-in zoom-in duration-700">
+          <Package className="w-12 h-12" />
+        </div>
+        
+        <div className="bg-white p-12 rounded-[3.5rem] shadow-2xl border border-slate-100 animate-in slide-in-from-bottom-12 duration-1000">
+          <h1 className="text-3xl font-black text-slate-900 tracking-tighter mb-2">Login or Sign Up</h1>
+          <p className="text-slate-500 font-medium mb-10 italic">Access your Stockly Automator Terminal</p>
+
+          <div className="flex items-center gap-3 justify-center mb-10 text-emerald-600">
+            <ShieldCheck className="w-5 h-5" />
+            <span className="text-xs font-black uppercase tracking-[0.2em]">Secure Cloud Authentication</span>
           </div>
-          <h1 className="text-3xl font-black text-slate-900">Stockly</h1>
-          <p className="text-slate-500 mt-2">Sign in to manage your shop</p>
+          
+          <button
+            onClick={openAuth}
+            className="w-full bg-slate-900 text-white py-6 rounded-[2rem] font-black uppercase tracking-[0.2em] text-xs flex items-center justify-center gap-4 hover:bg-black shadow-2xl transition-all active:scale-95 group"
+          >
+            Login / Sign Up <ArrowRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
+          </button>
+
+          <div className="mt-10 pt-10 border-t border-slate-50 flex flex-col items-center gap-4">
+             <div className="flex items-center gap-2 text-slate-400">
+                <UserPlus className="w-4 h-4" />
+                <span className="text-[10px] font-black uppercase tracking-widest">New users can register instantly</span>
+             </div>
+             <p className="text-slate-400 text-[9px] font-black uppercase tracking-widest leading-relaxed max-w-[200px] mx-auto opacity-60">
+                Managed by Netlify Identity Identity Protocol v1.0
+             </p>
+          </div>
         </div>
 
-        <div className="bg-white p-8 rounded-3xl shadow-xl border border-slate-100">
-          <form onSubmit={handleSubmit} className="space-y-6">
-            <div>
-              <label className="block text-sm font-bold text-slate-700 mb-2">Email Address</label>
-              <div className="relative">
-                <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
-                <input
-                  required
-                  type="email"
-                  placeholder="name@company.com"
-                  className="w-full pl-11 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all"
-                  value={formData.email}
-                  onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                />
-              </div>
-            </div>
-
-            <div>
-              <div className="flex justify-between items-center mb-2">
-                <label className="text-sm font-bold text-slate-700">Password</label>
-                <a href="#" className="text-xs font-bold text-blue-600 hover:underline">Forgot?</a>
-              </div>
-              <div className="relative">
-                <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
-                <input
-                  required
-                  type="password"
-                  placeholder="••••••••"
-                  className="w-full pl-11 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all"
-                  value={formData.password}
-                  onChange={(e) => setFormData({ ...formData, password: e.target.value })}
-                />
-              </div>
-            </div>
-
-            <button
-              type="submit"
-              disabled={loading}
-              className="w-full bg-blue-600 text-white py-4 rounded-xl font-bold flex items-center justify-center gap-2 hover:bg-blue-700 shadow-lg shadow-blue-200 transition-all active:scale-[0.98] disabled:opacity-70"
-            >
-              {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : <>Sign In <ArrowRight className="w-5 h-5" /></>}
-            </button>
-          </form>
-
-          <div className="mt-8 text-center border-t border-slate-50 pt-8">
-            <p className="text-slate-500 text-sm">
-              Don't have an account?{' '}
-              <Link to="/signup" className="text-blue-600 font-bold hover:underline">Create Account</Link>
-            </p>
-          </div>
+        <div className="mt-12 flex items-center justify-center gap-8 opacity-20">
+           <div className="h-px w-12 bg-slate-900"></div>
+           <p className="text-[10px] font-black uppercase tracking-[0.5em]">Enterprise Edition</p>
+           <div className="h-px w-12 bg-slate-900"></div>
         </div>
       </div>
     </div>
