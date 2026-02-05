@@ -1,5 +1,5 @@
 
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, { createContext, useContext, useState, useEffect, useRef } from 'react';
 import { Product, Customer, Invoice, LedgerEntry, Payment, PaymentReminder, User, StockMovement, Vendor, VendorLedgerEntry } from '../types';
 
 // Declare netlifyIdentity for the global window object
@@ -47,6 +47,7 @@ const AppContext = createContext<AppContextType | undefined>(undefined);
 export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [hasHydrated, setHasHydrated] = useState(false);
   
   const [products, setProducts] = useState<Product[]>([]);
   const [customers, setCustomers] = useState<Customer[]>([]);
@@ -57,7 +58,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [payments, setPayments] = useState<Payment[]>([]);
   const [reminders, setReminders] = useState<PaymentReminder[]>([]);
 
-  const resetAppState = () => {
+  // Function to clear in-memory state (used on logout)
+  const resetInMemoryState = () => {
     setProducts([]);
     setCustomers([]);
     setVendors([]);
@@ -66,8 +68,29 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setVendorLedger([]);
     setPayments([]);
     setReminders([]);
-    localStorage.clear();
+    setHasHydrated(false);
   };
+
+  // Helper to get storage key for current user
+  const getStorageKey = (userId: string) => `stockly_data_v1_${userId}`;
+
+  // Persist data whenever state changes (only if hydrated)
+  useEffect(() => {
+    if (isAuthenticated && user?.id && hasHydrated) {
+      const dataToSave = {
+        products,
+        customers,
+        vendors,
+        invoices,
+        ledger,
+        vendorLedger,
+        payments,
+        reminders
+      };
+      localStorage.setItem(getStorageKey(user.id), JSON.stringify(dataToSave));
+      console.log(`[Persistence] Saved state for user: ${user.id}`);
+    }
+  }, [isAuthenticated, user?.id, hasHydrated, products, customers, vendors, invoices, ledger, vendorLedger, payments, reminders]);
 
   // Netlify Identity Integration
   useEffect(() => {
@@ -76,8 +99,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
       const handleLogin = (netlifyUser: any) => {
         if (netlifyUser) {
-          resetAppState();
-          
+          // 1. Build User Profile
           const appUser: User = {
             id: netlifyUser.id,
             name: netlifyUser.user_metadata?.full_name || netlifyUser.email.split('@')[0],
@@ -92,8 +114,31 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             subscriptionStatus: (localStorage.getItem(`sub_status_${netlifyUser.id}`) as any) || 'inactive',
             planExpiryDate: localStorage.getItem(`expiry_${netlifyUser.id}`) || undefined,
           };
+
+          // 2. Hydrate Data from Storage
+          const storedDataRaw = localStorage.getItem(getStorageKey(netlifyUser.id));
+          if (storedDataRaw) {
+            try {
+              const d = JSON.parse(storedDataRaw);
+              setProducts(d.products || []);
+              setCustomers(d.customers || []);
+              setVendors(d.vendors || []);
+              setInvoices(d.invoices || []);
+              setLedger(d.ledger || []);
+              setVendorLedger(d.vendorLedger || []);
+              setPayments(d.payments || []);
+              setReminders(d.reminders || []);
+              console.log(`[Persistence] Hydrated data for: ${netlifyUser.id}`);
+            } catch (err) {
+              console.error("[Persistence] Hydration failed, using defaults", err);
+            }
+          } else {
+            console.log("[Persistence] No existing data for user, starting fresh.");
+          }
+
           setUser(appUser);
           setIsAuthenticated(true);
+          setHasHydrated(true); // Allow saving now that loading is done
           netlifyIdentity.close();
         }
       };
@@ -101,7 +146,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       const handleLogout = () => {
         setUser(null);
         setIsAuthenticated(false);
-        resetAppState();
+        resetInMemoryState();
+        console.log("[Auth] Session terminated. In-memory state cleared.");
         netlifyIdentity.open();
       };
 
@@ -294,7 +340,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const createInvoice = (inv: Omit<Invoice, 'id' | 'invoiceNumber'>): Invoice => {
     const currentSeq = user?.nextInvoiceNumber || 1;
     const prefix = user?.invoicePrefix || 'INV';
-    const invoiceNumber = `${prefix}-${currentSeq.toString().padStart(5, '0')}`;
+    const invoiceNumber = `${prefix}${currentSeq.toString().padStart(5, '0')}`;
     const invoiceId = Math.random().toString(36).substr(2, 9);
     const transactionDate = inv.date || new Date().toISOString();
     const itemsWithCost = inv.items.map(item => {

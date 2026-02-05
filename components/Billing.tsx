@@ -129,7 +129,7 @@ const Billing: React.FC = () => {
 
     const tempInvoice: Invoice = {
       id: 'preview',
-      invoiceNumber: `${prefix}-${nextNum.toString().padStart(5, '0')}`,
+      invoiceNumber: `${prefix}${nextNum.toString().padStart(5, '0')}`,
       customerId: selectedCustomerId,
       customerName: customer?.name || 'Walk-in Customer',
       date: new Date().toISOString(),
@@ -334,7 +334,7 @@ const Billing: React.FC = () => {
                 <h5 className="text-[10px] font-black uppercase tracking-widest text-slate-400">Merchant Notes</h5>
               </div>
               <p className="text-sm font-bold text-slate-500 italic bg-slate-50 p-6 rounded-[2rem] border-2 border-dashed border-slate-100 leading-relaxed">
-                {currentInvoice.notes || 'No specific terms recorded for this sale.'}
+                {currentInvoice.notes || 'Terms: Goods once sold are not returnable. Please clear dues within 15 days.'}
               </p>
               <div className="mt-10 opacity-20 flex items-center gap-4">
                 <QrCode className="w-12 h-12" />
@@ -388,7 +388,7 @@ const Billing: React.FC = () => {
         </div>
         <div className="flex gap-2">
            <div className="px-4 py-2 bg-white border-2 rounded-xl text-xs font-black uppercase text-slate-400 flex items-center gap-2">
-              <Hash className="w-4 h-4" /> Next Seq: #{user?.nextInvoiceNumber}
+              <Hash className="w-4 h-4" /> Next Seq: #{user?.invoicePrefix}{user?.nextInvoiceNumber?.toString().padStart(5, '0')}
            </div>
         </div>
       </div>

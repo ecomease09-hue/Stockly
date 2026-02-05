@@ -13,7 +13,8 @@ import {
   ShieldCheck, 
   Key, 
   Camera,
-  Hash
+  Hash,
+  Type
 } from 'lucide-react';
 
 const UserDetails: React.FC = () => {
@@ -158,14 +159,25 @@ const UserDetails: React.FC = () => {
                 placeholder="Enter complete physical address..."
               />
             </div>
-            <InputField 
-              label="Manual Invoice Offset" 
-              name="nextInvoiceNumber" 
-              type="number"
-              value={user.nextInvoiceNumber} 
-              onChange={handleChange} 
-              icon={Hash}
-            />
+            
+            <div className="grid grid-cols-2 gap-4 pt-4 border-t border-slate-100">
+              <InputField 
+                label="Invoice Prefix" 
+                name="invoicePrefix" 
+                value={user.invoicePrefix || 'INV'} 
+                onChange={handleChange} 
+                icon={Type}
+                placeholder="e.g., INV-"
+              />
+              <InputField 
+                label="Starting Number" 
+                name="nextInvoiceNumber" 
+                type="number"
+                value={user.nextInvoiceNumber} 
+                onChange={handleChange} 
+                icon={Hash}
+              />
+            </div>
           </div>
         </div>
       </div>
