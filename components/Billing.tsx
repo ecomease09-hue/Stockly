@@ -26,14 +26,16 @@ import {
   Banknote,
   FileText,
   ShieldCheck,
-  AlertCircle
+  AlertCircle,
+  ToggleLeft,
+  ToggleRight
 } from 'lucide-react';
 import { InvoiceItem, PaymentType, Invoice } from '../types';
 import html2canvas from 'html2canvas';
 import { jsPDF } from 'jspdf';
 
 const Billing: React.FC = () => {
-  const { products, customers, createInvoice, invoices, user } = useApp();
+  const { products, customers, createInvoice, invoices, user, formatInvoiceNumber } = useApp();
   
   // UI State
   const [viewMode, setViewMode] = useState<'terminal' | 'invoice'>('terminal');
@@ -50,9 +52,24 @@ const Billing: React.FC = () => {
   const [notes, setNotes] = useState('Terms: Goods once sold are not returnable. Please clear dues within 15 days.');
   const [currentInvoice, setCurrentInvoice] = useState<Invoice | null>(null);
 
+  // Sequence Override State
+  const [isManualId, setIsManualId] = useState(false);
+  const [customInvoiceId, setCustomInvoiceId] = useState('');
+
   // Calculations
   const subtotal = useMemo(() => selectedItems.reduce((sum, item) => sum + item.total, 0), [selectedItems]);
-  const total = subtotal; // Simplified (Tax/Discount can be added if needed)
+  const total = subtotal; 
+
+  // Predictive Next ID calculation
+  const nextProjectedId = useMemo(() => {
+    let currentSeq = user?.nextInvoiceNumber || 1;
+    let invoiceNumber = formatInvoiceNumber(currentSeq);
+    while (invoices.some(i => i.invoiceNumber === invoiceNumber)) {
+        currentSeq++;
+        invoiceNumber = formatInvoiceNumber(currentSeq);
+    }
+    return invoiceNumber;
+  }, [user?.nextInvoiceNumber, user?.invoicePrefix, user?.invoicePadding, invoices, formatInvoiceNumber]);
 
   useEffect(() => {
     if (toast) {
@@ -124,12 +141,20 @@ const Billing: React.FC = () => {
     }
 
     const customer = customers.find(c => c.id === selectedCustomerId);
-    const prefix = user?.invoicePrefix || 'INV';
-    const nextNum = user?.nextInvoiceNumber || 1;
+    
+    const invoiceNumber = isManualId && customInvoiceId 
+        ? customInvoiceId 
+        : nextProjectedId;
+
+    // Verification if manual ID exists
+    if (isManualId && invoices.some(i => i.invoiceNumber === customInvoiceId)) {
+        setToast({ message: "Manual Invoice Number already exists in records.", type: 'error' });
+        return;
+    }
 
     const tempInvoice: Invoice = {
       id: 'preview',
-      invoiceNumber: `${prefix}${nextNum.toString().padStart(5, '0')}`,
+      invoiceNumber,
       customerId: selectedCustomerId,
       customerName: customer?.name || 'Walk-in Customer',
       date: new Date().toISOString(),
@@ -151,16 +176,6 @@ const Billing: React.FC = () => {
     if (isGenerating || !currentInvoice) return;
     setIsGenerating(true);
 
-    // Final inventory check before persistence
-    for (const item of selectedItems) {
-      const prod = products.find(p => p.id === item.productId);
-      if (!prod || prod.stockQuantity < item.quantity) {
-        setToast({ message: `Stock collision: ${item.productName} is now out of stock.`, type: 'error' });
-        setIsGenerating(false);
-        return;
-      }
-    }
-
     try {
       const result = createInvoice({
         customerId: currentInvoice.customerId,
@@ -178,7 +193,6 @@ const Billing: React.FC = () => {
 
       setCurrentInvoice(result);
       setToast({ message: "Invoice Generated & Ledger Updated", type: 'success' });
-      // We don't reset selected items here yet so user can download/print the view
     } catch (e) {
       setToast({ message: "Failed to generate invoice.", type: 'error' });
     } finally {
@@ -213,6 +227,8 @@ const Billing: React.FC = () => {
     setSelectedCustomerId('');
     setCurrentInvoice(null);
     setViewMode('terminal');
+    setCustomInvoiceId('');
+    setIsManualId(false);
   };
 
   const RenderLogo = () => (
@@ -224,7 +240,6 @@ const Billing: React.FC = () => {
   if (viewMode === 'invoice' && currentInvoice) {
     return (
       <div className="min-h-screen bg-slate-100 flex flex-col items-center pb-20 animate-in fade-in duration-500">
-        {/* Navigation Bar */}
         <div className="w-full bg-white border-b px-8 py-4 flex items-center justify-between sticky top-0 z-50 no-print">
           <div className="flex items-center gap-4">
             <button 
@@ -264,9 +279,7 @@ const Billing: React.FC = () => {
           </div>
         </div>
 
-        {/* Invoice Page Container */}
         <div id="printable-invoice" className="invoice-container bg-white shadow-2xl w-full max-w-[21cm] mt-10 p-12 md:p-20 relative overflow-hidden">
-          {/* Header */}
           <div className="flex justify-between items-start mb-16">
             <div className="space-y-6">
               <RenderLogo />
@@ -290,7 +303,6 @@ const Billing: React.FC = () => {
             </div>
           </div>
 
-          {/* Client Info */}
           <div className="bg-slate-50 p-8 rounded-[2.5rem] border border-slate-100 mb-12 flex justify-between items-center">
             <div>
               <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2">Billed To</p>
@@ -304,7 +316,6 @@ const Billing: React.FC = () => {
             </div>
           </div>
 
-          {/* Items Table */}
           <table className="w-full text-left mb-16">
             <thead>
               <tr className="border-b-4 border-slate-900">
@@ -326,7 +337,6 @@ const Billing: React.FC = () => {
             </tbody>
           </table>
 
-          {/* Footer Summary */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-16 pt-12 border-t-4 border-slate-900">
             <div>
               <div className="flex items-center gap-3 mb-6">
@@ -336,12 +346,6 @@ const Billing: React.FC = () => {
               <p className="text-sm font-bold text-slate-500 italic bg-slate-50 p-6 rounded-[2rem] border-2 border-dashed border-slate-100 leading-relaxed">
                 {currentInvoice.notes || 'Terms: Goods once sold are not returnable. Please clear dues within 15 days.'}
               </p>
-              <div className="mt-10 opacity-20 flex items-center gap-4">
-                <QrCode className="w-12 h-12" />
-                <p className="text-[9px] font-black uppercase tracking-widest text-slate-900 max-w-[120px]">
-                  Verified Digital Document Stockly Automator
-                </p>
-              </div>
             </div>
             <div className="bg-slate-900 text-white p-10 rounded-[3.5rem] shadow-2xl space-y-6 relative overflow-hidden">
               <div className="absolute top-0 right-0 w-64 h-64 bg-blue-500/10 rounded-full blur-3xl -mr-32 -mt-32"></div>
@@ -368,7 +372,6 @@ const Billing: React.FC = () => {
           </div>
         </div>
 
-        {/* Floating Toast */}
         {toast && (
           <div className={`fixed bottom-10 px-8 py-4 rounded-2xl shadow-2xl z-[100] animate-toast flex items-center gap-3 border ${toast.type === 'success' ? 'bg-emerald-900 text-emerald-100 border-emerald-500' : 'bg-rose-900 text-rose-100 border-rose-500'}`}>
             {toast.type === 'success' ? <CheckCircle2 className="w-5 h-5" /> : <AlertCircle className="w-5 h-5" />}
@@ -381,15 +384,24 @@ const Billing: React.FC = () => {
 
   return (
     <div className="space-y-6 animate-in fade-in duration-500">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
           <h2 className="text-3xl font-black text-slate-900 tracking-tighter">Billing Terminal</h2>
           <p className="text-slate-500">Fast item dispatch with automated inventory sync.</p>
         </div>
-        <div className="flex gap-2">
-           <div className="px-4 py-2 bg-white border-2 rounded-xl text-xs font-black uppercase text-slate-400 flex items-center gap-2">
-              <Hash className="w-4 h-4" /> Next Seq: #{user?.invoicePrefix}{user?.nextInvoiceNumber?.toString().padStart(5, '0')}
+        <div className="flex items-center gap-4 bg-white p-3 rounded-2xl border shadow-sm">
+           <div className="flex flex-col text-right">
+              <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Projected Terminal ID</span>
+              <span className="text-sm font-black text-blue-600 font-mono">#{nextProjectedId}</span>
            </div>
+           <div className="w-px h-8 bg-slate-100"></div>
+           <button 
+            onClick={() => setIsManualId(!isManualId)}
+            className={`flex items-center gap-2 px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${isManualId ? 'bg-amber-100 text-amber-700' : 'bg-slate-50 text-slate-400'}`}
+           >
+              {isManualId ? <ToggleRight className="w-4 h-4" /> : <ToggleLeft className="w-4 h-4" />}
+              Manual Mode
+           </button>
         </div>
       </div>
 
@@ -483,6 +495,21 @@ const Billing: React.FC = () => {
         {/* Settlement Panel */}
         <div className="space-y-6">
           <div className="bg-white p-8 rounded-[2.5rem] border shadow-sm space-y-8 sticky top-6">
+             {isManualId && (
+                <div className="animate-in slide-in-from-top-2 duration-300">
+                   <label className="block text-[10px] font-black text-amber-600 uppercase tracking-widest mb-3 flex items-center gap-2">
+                     <Hash className="w-3 h-3" /> Manual Invoice ID
+                   </label>
+                   <input 
+                     type="text" 
+                     placeholder="Enter manual reference..."
+                     className="w-full px-5 py-4 border-2 rounded-2xl bg-amber-50 font-mono font-black text-amber-900 focus:ring-2 focus:ring-amber-500 outline-none border-amber-100"
+                     value={customInvoiceId}
+                     onChange={(e) => setCustomInvoiceId(e.target.value)}
+                   />
+                </div>
+             )}
+
              <div>
                 <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3 flex items-center gap-2">
                   <Eye className="w-3 h-3" /> Select Account

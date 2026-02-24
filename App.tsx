@@ -12,30 +12,38 @@ import VendorLedger from './components/VendorLedger';
 import Ledger from './components/Ledger';
 import Reports from './components/Reports';
 import UserDetails from './components/UserDetails';
-import Login from './components/Login';
-import SignUp from './components/SignUp';
 import Pricing from './components/Pricing';
+import LandingPage from './components/LandingPage';
 
 const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { isAuthenticated } = useApp();
-  if (!isAuthenticated) return <Navigate to="/login" replace />;
-  return <>{children}</>;
-};
-
-const AuthRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const { isAuthenticated } = useApp();
-  if (isAuthenticated) return <Navigate to="/" replace />;
+  if (!isAuthenticated) return <Navigate to="/" replace />;
   return <>{children}</>;
 };
 
 const AppContent: React.FC = () => {
+  const { isAuthenticated } = useApp();
+
   return (
     <Router>
       <Routes>
-        <Route path="/login" element={<AuthRoute><Login /></AuthRoute>} />
-        <Route path="/signup" element={<AuthRoute><SignUp /></AuthRoute>} />
+        {/* Dynamic Root Route: Landing/Login if logged out, Dashboard if logged in */}
+        <Route 
+          path="/" 
+          element={
+            isAuthenticated ? (
+              <ProtectedRoute>
+                <Layout>
+                  <Dashboard />
+                </Layout>
+              </ProtectedRoute>
+            ) : (
+              <LandingPage />
+            )
+          } 
+        />
         
-        <Route path="/" element={<ProtectedRoute><Layout><Dashboard /></Layout></ProtectedRoute>} />
+        {/* Internal Application Routes */}
         <Route path="/inventory" element={<ProtectedRoute><Layout><Inventory /></Layout></ProtectedRoute>} />
         <Route path="/billing" element={<ProtectedRoute><Layout><Billing /></Layout></ProtectedRoute>} />
         <Route path="/customers" element={<ProtectedRoute><Layout><Customers /></Layout></ProtectedRoute>} />

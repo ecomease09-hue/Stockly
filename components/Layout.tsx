@@ -18,6 +18,7 @@ import {
   Crown,
   Sparkles
 } from 'lucide-react';
+import GeminiAssistant from './GeminiAssistant';
 
 const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { user, logout } = useApp();
@@ -121,7 +122,7 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
           
           <button 
             onClick={handleLogout}
-            className="flex items-center gap-3 w-full px-4 py-3 text-slate-400 hover:text-rose-400 hover:bg-rose-500/10 rounded-lg transition-all group"
+            className="flex items-center gap-3 w-full px-4 py-3 text-slate-400 hover:text-rose-400 hover:bg-rose-50/10 rounded-lg transition-all group"
           >
             <LogOut className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
             <span className="font-medium">Sign Out</span>
@@ -135,6 +136,9 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
           {children}
         </div>
       </main>
+
+      {/* AI Assistant Overlay */}
+      <GeminiAssistant />
 
       {/* Mobile Overlay */}
       {isSidebarOpen && (

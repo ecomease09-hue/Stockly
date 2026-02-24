@@ -9,6 +9,7 @@ export interface User {
   phone?: string;
   nextInvoiceNumber: number;
   invoicePrefix: string;
+  invoicePadding: number;
   primaryColor?: string;
   plan: 'free' | 'pro' | 'premium';
   subscriptionStatus: 'active' | 'inactive';

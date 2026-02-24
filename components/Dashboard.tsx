@@ -1,7 +1,8 @@
 
-import React, { useRef } from 'react';
+import React, { useRef, useState, useEffect } from 'react';
 import { useApp } from '../store/AppContext';
 import { useNavigate } from 'react-router-dom';
+import { GoogleGenAI } from "@google/genai";
 import { 
   TrendingUp, 
   AlertTriangle, 
@@ -17,7 +18,11 @@ import {
   ChevronRight,
   ArrowRight,
   Truck,
-  Wallet2
+  Wallet2,
+  BrainCircuit,
+  Sparkles,
+  RefreshCw,
+  Zap
 } from 'lucide-react';
 import { 
   AreaChart, 
@@ -33,6 +38,8 @@ const Dashboard: React.FC = () => {
   const { products, customers, vendors, invoices, user, updateUser } = useApp();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const navigate = useNavigate();
+  const [aiInsight, setAiInsight] = useState<string | null>(null);
+  const [isAiLoading, setIsAiLoading] = useState(false);
 
   // Calculations
   const totalSales = invoices.reduce((sum, inv) => sum + inv.total, 0);
@@ -46,30 +53,31 @@ const Dashboard: React.FC = () => {
   
   const lowStockProducts = products.filter(p => p.stockQuantity <= p.lowStockThreshold);
   const lowStockCount = lowStockProducts.length;
-  const totalCustomers = customers.length;
   
-  // Vendor Payables
   const totalVendorPayables = vendors.reduce((sum, v) => sum + (v.totalBalance || 0), 0);
 
-  const handleLogoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        updateUser({ logoUrl: reader.result as string });
-      };
-      reader.readAsDataURL(file);
+  const fetchAiInsight = async () => {
+    if (products.length === 0) return;
+    setIsAiLoading(true);
+    try {
+      const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+      const context = `Inventory: ${products.map(p => `${p.name} at ${p.stockQuantity}`).join(', ')}. Sales total: Rs. ${totalSales}. Low stock SKUs: ${lowStockCount}. Provide one actionable 15-word business tip.`;
+      
+      const response = await ai.models.generateContent({
+        model: 'gemini-3-flash-preview',
+        contents: [{ role: 'user', parts: [{ text: context }] }],
+      });
+      setAiInsight(response.text || "Optimize stock levels based on current sales velocity.");
+    } catch (e) {
+      setAiInsight("Monitor SKU velocity for optimal reordering.");
+    } finally {
+      setIsAiLoading(false);
     }
   };
 
-  const handleProfileUpdate = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
-    const { name, value } = e.target;
-    if (name === 'nextInvoiceNumber') {
-      updateUser({ nextInvoiceNumber: parseInt(value) || 1 });
-    } else {
-      updateUser({ [name]: value });
-    }
-  };
+  useEffect(() => {
+    fetchAiInsight();
+  }, [products.length]);
 
   const data = [
     { name: 'Mon', sales: 4000, profit: 2400 },
@@ -80,6 +88,15 @@ const Dashboard: React.FC = () => {
     { name: 'Sat', sales: 2390, profit: 3800 },
     { name: 'Sun', sales: 3490, profit: 4300 },
   ];
+
+  const handleProfileUpdate = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+    const { name, value } = e.target;
+    if (name === 'nextInvoiceNumber') {
+      updateUser({ nextInvoiceNumber: parseInt(value) || 1 });
+    } else {
+      updateUser({ [name]: value });
+    }
+  };
 
   return (
     <div className="space-y-6">
@@ -100,6 +117,32 @@ const Dashboard: React.FC = () => {
              <span className="text-sm font-bold text-slate-700">{user?.shopName}</span>
            </div>
         </div>
+      </div>
+
+      {/* AI Insight Card */}
+      <div className="bg-slate-900 rounded-[2rem] p-8 text-white relative overflow-hidden group shadow-2xl animate-in zoom-in duration-500">
+         <div className="absolute top-0 right-0 w-96 h-96 bg-blue-600/20 rounded-full blur-[80px] -mr-48 -mt-48 transition-transform group-hover:scale-110"></div>
+         <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-8 relative z-10">
+            <div className="flex items-center gap-6">
+               <div className="w-16 h-16 bg-blue-600 rounded-[1.5rem] flex items-center justify-center shadow-2xl shadow-blue-500/50">
+                  <BrainCircuit className="w-8 h-8" />
+               </div>
+               <div>
+                  <div className="flex items-center gap-2 mb-1">
+                    <span className="px-3 py-1 bg-blue-500/20 text-blue-400 rounded-full text-[9px] font-black uppercase tracking-widest border border-blue-500/30">Intelligence Node</span>
+                    {isAiLoading && <RefreshCw className="w-3 h-3 text-blue-400 animate-spin" />}
+                  </div>
+                  <h3 className="text-xl font-black tracking-tight">Gemini Strategy Recommendation</h3>
+                  <p className="text-blue-100/60 text-sm font-medium mt-1 italic">"{aiInsight || 'Analyzing real-time stock patterns...'}"</p>
+               </div>
+            </div>
+            <button 
+              onClick={() => navigate('/inventory')}
+              className="px-8 py-4 bg-white text-slate-900 rounded-2xl font-black text-xs uppercase tracking-widest flex items-center gap-3 hover:bg-blue-50 transition-all active:scale-95"
+            >
+               Optimize Now <Zap className="w-4 h-4 text-blue-600" />
+            </button>
+         </div>
       </div>
 
       {/* KPI Grid */}
@@ -139,7 +182,6 @@ const Dashboard: React.FC = () => {
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Sales Chart */}
         <div className="lg:col-span-2 bg-white p-6 rounded-xl border shadow-sm">
           <div className="flex items-center justify-between mb-6">
             <h3 className="text-lg font-semibold flex items-center gap-2">
@@ -180,7 +222,6 @@ const Dashboard: React.FC = () => {
           </div>
         </div>
 
-        {/* Shop Settings & Alerts */}
         <div className="space-y-6">
           <div className="bg-white p-6 rounded-xl border shadow-sm">
             <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
@@ -188,31 +229,7 @@ const Dashboard: React.FC = () => {
               Shop Configuration
             </h3>
             <div className="space-y-4">
-              <div className="flex flex-col items-center justify-center p-6 border-2 border-dashed rounded-2xl bg-slate-50 relative group">
-                <div className="w-24 h-24 bg-white rounded-2xl border shadow-sm flex items-center justify-center overflow-hidden mb-4">
-                  {user?.logoUrl ? (
-                    <img src={user.logoUrl} alt="Shop Logo" className="w-full h-full object-contain" />
-                  ) : (
-                    <Building2 className="w-10 h-10 text-slate-300" />
-                  )}
-                </div>
-                <button 
-                  onClick={() => fileInputRef.current?.click()}
-                  className="flex items-center gap-2 text-xs font-bold bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-all shadow-lg shadow-blue-100"
-                >
-                  <Upload className="w-3 h-3" /> {user?.logoUrl ? 'Update Brand' : 'Set Brand Logo'}
-                </button>
-                <input 
-                  type="file" 
-                  ref={fileInputRef} 
-                  className="hidden" 
-                  accept="image/*" 
-                  onChange={handleLogoUpload} 
-                />
-              </div>
-
-              <div className="space-y-3">
-                <div className="p-3 bg-slate-50 rounded-xl border border-slate-200">
+              <div className="p-3 bg-slate-50 rounded-xl border border-slate-200">
                   <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1 block">Shop Identity</label>
                   <input 
                     name="shopName"
@@ -220,8 +237,8 @@ const Dashboard: React.FC = () => {
                     onChange={handleProfileUpdate}
                     className="w-full bg-transparent text-sm font-bold text-slate-900 outline-none focus:ring-1 focus:ring-blue-400 rounded px-1"
                   />
-                </div>
-                <div className="flex gap-3">
+              </div>
+              <div className="flex gap-3">
                   <div className="p-3 bg-slate-50 rounded-xl border border-slate-200 flex-1">
                     <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1 block flex items-center gap-1">
                       <Phone className="w-3 h-3" /> Phone
@@ -246,7 +263,6 @@ const Dashboard: React.FC = () => {
                     />
                   </div>
                 </div>
-              </div>
             </div>
           </div>
 

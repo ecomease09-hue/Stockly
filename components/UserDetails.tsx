@@ -14,11 +14,14 @@ import {
   Key, 
   Camera,
   Hash,
-  Type
+  Type,
+  ArrowRight,
+  Settings2,
+  FileDigit
 } from 'lucide-react';
 
 const UserDetails: React.FC = () => {
-  const { user, updateUser, products, invoices } = useApp();
+  const { user, updateUser, products, invoices, formatInvoiceNumber } = useApp();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [saveFeedback, setSaveFeedback] = useState(false);
 
@@ -34,10 +37,10 @@ const UserDetails: React.FC = () => {
     }
   };
 
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
     const { name, value } = e.target;
-    if (name === 'nextInvoiceNumber') {
-      updateUser({ nextInvoiceNumber: parseInt(value) || 1 });
+    if (name === 'nextInvoiceNumber' || name === 'invoicePadding') {
+      updateUser({ [name]: parseInt(value) || 1 });
     } else {
       updateUser({ [name]: value });
     }
@@ -159,27 +162,89 @@ const UserDetails: React.FC = () => {
                 placeholder="Enter complete physical address..."
               />
             </div>
-            
-            <div className="grid grid-cols-2 gap-4 pt-4 border-t border-slate-100">
-              <InputField 
-                label="Invoice Prefix" 
-                name="invoicePrefix" 
-                value={user.invoicePrefix || 'INV'} 
-                onChange={handleChange} 
-                icon={Type}
-                placeholder="e.g., INV-"
-              />
-              <InputField 
-                label="Starting Number" 
-                name="nextInvoiceNumber" 
-                type="number"
-                value={user.nextInvoiceNumber} 
-                onChange={handleChange} 
-                icon={Hash}
-              />
-            </div>
           </div>
         </div>
+      </div>
+
+      {/* Robust Numbering System Section */}
+      <div className="bg-white rounded-[2.5rem] p-12 border shadow-sm space-y-10 relative overflow-hidden group">
+         <div className="absolute top-0 right-0 w-64 h-64 bg-amber-500/5 rounded-full blur-3xl -mr-32 -mt-32"></div>
+         
+         <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
+            <div className="flex items-center gap-4">
+              <div className="w-14 h-14 bg-amber-600 text-white rounded-2xl flex items-center justify-center shadow-2xl shadow-amber-200">
+                <Settings2 className="w-7 h-7" />
+              </div>
+              <div>
+                <h3 className="text-2xl font-black text-slate-900 tracking-tighter uppercase">Sequence Architect</h3>
+                <p className="text-slate-400 font-bold text-sm">Configure document identity and auto-numbering logic.</p>
+              </div>
+            </div>
+            <div className="px-8 py-5 bg-slate-900 text-white rounded-3xl shadow-2xl flex flex-col items-center min-w-[200px] group-hover:scale-105 transition-transform">
+               <span className="text-[9px] font-black text-blue-400 uppercase tracking-widest mb-1">Live Sample ID</span>
+               <span className="text-2xl font-black font-mono tracking-tight italic">
+                  {formatInvoiceNumber(user.nextInvoiceNumber)}
+               </span>
+            </div>
+         </div>
+
+         <div className="grid grid-cols-1 md:grid-cols-3 gap-8 pt-6">
+            <div className="space-y-3">
+              <label className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] pl-2 flex items-center gap-2">
+                <Type className="w-3 h-3 text-blue-500" /> ID Prefix
+              </label>
+              <input 
+                name="invoicePrefix" 
+                value={user.invoicePrefix ?? ''} 
+                onChange={handleChange}
+                className="w-full px-6 py-4 bg-slate-50 border-2 border-slate-100 rounded-2xl font-black text-slate-800 focus:ring-2 focus:ring-blue-500 outline-none transition-all"
+                placeholder="e.g. INV-"
+              />
+              <p className="text-[9px] font-bold text-slate-400 italic pl-2">Static part of the invoice number.</p>
+            </div>
+
+            <div className="space-y-3">
+              <label className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] pl-2 flex items-center gap-2">
+                <Hash className="w-3 h-3 text-blue-500" /> Start Number
+              </label>
+              <input 
+                type="number"
+                name="nextInvoiceNumber" 
+                min="1"
+                value={user.nextInvoiceNumber} 
+                onChange={handleChange}
+                className="w-full px-6 py-4 bg-slate-50 border-2 border-slate-100 rounded-2xl font-black text-slate-800 focus:ring-2 focus:ring-blue-500 outline-none transition-all"
+              />
+              <p className="text-[9px] font-bold text-slate-400 italic pl-2">The next available sequential digit.</p>
+            </div>
+
+            <div className="space-y-3">
+              <label className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] pl-2 flex items-center gap-2">
+                <FileDigit className="w-3 h-3 text-blue-500" /> Zero Padding
+              </label>
+              <select 
+                name="invoicePadding"
+                value={user.invoicePadding || 5}
+                onChange={handleChange}
+                className="w-full px-6 py-4 bg-slate-50 border-2 border-slate-100 rounded-2xl font-black text-slate-800 focus:ring-2 focus:ring-blue-500 outline-none transition-all appearance-none cursor-pointer"
+              >
+                {[2, 3, 4, 5, 6, 7, 8].map(p => (
+                  <option key={p} value={p}>{p} Digits (e.g. {p === 5 ? '00001' : '0'.repeat(p-1)+'1'})</option>
+                ))}
+              </select>
+              <p className="text-[9px] font-bold text-slate-400 italic pl-2">Ensures IDs have a fixed character length.</p>
+            </div>
+         </div>
+
+         <div className="p-6 bg-blue-50 rounded-2xl border-2 border-blue-100 border-dashed flex items-start gap-4">
+            <ShieldCheck className="w-6 h-6 text-blue-600 mt-1" />
+            <div className="space-y-1">
+               <p className="text-xs font-black text-blue-900 uppercase">Collision Prevention Enabled</p>
+               <p className="text-xs font-bold text-blue-700/70 italic leading-relaxed">
+                  If you set a starting number that already exists in your records, the system will automatically skip forward to the next truly unique available ID during the next sale.
+               </p>
+            </div>
+         </div>
       </div>
 
       <div className="flex justify-center pb-12">
