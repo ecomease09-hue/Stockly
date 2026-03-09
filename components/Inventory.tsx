@@ -385,6 +385,69 @@ const Inventory: React.FC = () => {
         </div>
       )}
 
+      {/* History Modal */}
+      {isHistoryModalOpen && viewingHistory && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/80 backdrop-blur-md animate-in zoom-in duration-300">
+          <div className="bg-white rounded-[3.5rem] shadow-3xl w-full max-w-2xl overflow-hidden flex flex-col max-h-[90vh]">
+            <div className="p-10 border-b bg-amber-50 flex items-center justify-between relative overflow-hidden shrink-0">
+              <div className="absolute top-0 right-0 w-32 h-32 bg-amber-500/10 rounded-full blur-2xl -mr-16 -mt-16"></div>
+              <div className="flex items-center gap-6 relative z-10">
+                <div className="w-14 h-14 bg-amber-600 text-white rounded-2xl flex items-center justify-center shadow-2xl shadow-amber-100">
+                   <History className="w-7 h-7" />
+                </div>
+                <div>
+                  <h3 className="text-3xl font-black text-slate-900 tracking-tighter">Stock History</h3>
+                  <p className="text-slate-500 font-bold text-sm">{viewingHistory.name} ({viewingHistory.sku})</p>
+                </div>
+              </div>
+              <button onClick={() => setIsHistoryModalOpen(false)} className="text-slate-300 hover:text-slate-600 transition-colors relative z-10">
+                <X className="w-8 h-8" />
+              </button>
+            </div>
+            
+            <div className="p-10 overflow-y-auto custom-scrollbar flex-1">
+              {viewingHistory.movements && viewingHistory.movements.length > 0 ? (
+                <div className="space-y-6 relative before:absolute before:inset-0 before:ml-6 before:-translate-x-px md:before:mx-auto md:before:translate-x-0 before:h-full before:w-0.5 before:bg-gradient-to-b before:from-transparent before:via-slate-200 before:to-transparent">
+                  {viewingHistory.movements.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()).map((movement, idx) => (
+                    <div key={movement.id || idx} className="relative flex items-center justify-between md:justify-normal md:odd:flex-row-reverse group is-active">
+                      <div className="flex items-center justify-center w-12 h-12 rounded-full border-4 border-white bg-slate-100 text-slate-500 shadow shrink-0 md:order-1 md:group-odd:-translate-x-1/2 md:group-even:translate-x-1/2 z-10">
+                        {movement.type === 'in' ? <ArrowDownCircle className="w-5 h-5 text-emerald-500" /> : <ArrowUpCircle className="w-5 h-5 text-rose-500" />}
+                      </div>
+                      <div className="w-[calc(100%-4rem)] md:w-[calc(50%-3rem)] p-6 rounded-2xl border border-slate-100 bg-white shadow-sm">
+                        <div className="flex items-center justify-between mb-2">
+                          <span className={`px-3 py-1 rounded-lg text-[10px] font-black uppercase tracking-widest ${movement.type === 'in' ? 'bg-emerald-50 text-emerald-600' : 'bg-rose-50 text-rose-600'}`}>
+                            {movement.type === 'in' ? 'Stock In' : 'Stock Out'}
+                          </span>
+                          <span className="text-[10px] font-bold text-slate-400 flex items-center gap-1">
+                            <Clock className="w-3 h-3" /> {new Date(movement.date).toLocaleDateString()}
+                          </span>
+                        </div>
+                        <p className="font-black text-slate-800 text-lg mb-1">
+                          {movement.type === 'in' ? '+' : '-'}{movement.quantity} Units
+                        </p>
+                        <p className="text-xs font-medium text-slate-500 italic">{movement.reason}</p>
+                        {movement.referenceId && (
+                          <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mt-3 pt-3 border-t border-slate-50">
+                            Ref: {movement.referenceId}
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="text-center py-12">
+                  <div className="w-16 h-16 bg-slate-50 rounded-full flex items-center justify-center mx-auto mb-4 border border-slate-100">
+                    <History className="w-6 h-6 text-slate-300" />
+                  </div>
+                  <p className="text-slate-500 font-bold">No movement history recorded yet.</p>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Add/Edit Asset Modal */}
       {isModalOpen && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/80 backdrop-blur-md animate-in zoom-in duration-300">

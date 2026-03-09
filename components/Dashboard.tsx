@@ -22,7 +22,8 @@ import {
   BrainCircuit,
   Sparkles,
   RefreshCw,
-  Zap
+  Zap,
+  Filter
 } from 'lucide-react';
 import { 
   AreaChart, 
@@ -40,6 +41,24 @@ const Dashboard: React.FC = () => {
   const navigate = useNavigate();
   const [aiInsight, setAiInsight] = useState<string | null>(null);
   const [isAiLoading, setIsAiLoading] = useState(false);
+  const [isCustomizeModalOpen, setIsCustomizeModalOpen] = useState(false);
+
+  const [viewPreferences, setViewPreferences] = useState(() => {
+    const saved = localStorage.getItem('dashboardPreferences');
+    return saved ? JSON.parse(saved) : {
+      showAiInsight: true,
+      showKpiGrid: true,
+      showAnalytics: true,
+      showConfig: true,
+      showAlerts: true
+    };
+  });
+
+  const updatePreference = (key: keyof typeof viewPreferences, value: boolean) => {
+    const newPrefs = { ...viewPreferences, [key]: value };
+    setViewPreferences(newPrefs);
+    localStorage.setItem('dashboardPreferences', JSON.stringify(newPrefs));
+  };
 
   // Calculations
   const totalSales = invoices.reduce((sum, inv) => sum + inv.total, 0);
@@ -106,6 +125,13 @@ const Dashboard: React.FC = () => {
           <p className="text-slate-500">Welcome back, {user?.name}! Your shop is running smooth.</p>
         </div>
         <div className="flex gap-2">
+           <button 
+             onClick={() => setIsCustomizeModalOpen(true)}
+             className="bg-white px-4 py-2 border rounded-xl shadow-sm flex items-center gap-2 text-sm font-bold text-slate-700 hover:bg-slate-50 transition-colors"
+           >
+             <Filter className="w-4 h-4 text-slate-500" />
+             Customize View
+           </button>
            <div className="bg-white px-4 py-2 border rounded-xl shadow-sm flex items-center gap-3">
              <div className="w-8 h-8 rounded-lg bg-blue-50 flex items-center justify-center overflow-hidden border">
                 {user?.logoUrl ? (
@@ -120,6 +146,7 @@ const Dashboard: React.FC = () => {
       </div>
 
       {/* AI Insight Card */}
+      {viewPreferences.showAiInsight && (
       <div className="bg-slate-900 rounded-[2rem] p-8 text-white relative overflow-hidden group shadow-2xl animate-in zoom-in duration-500">
          <div className="absolute top-0 right-0 w-96 h-96 bg-blue-600/20 rounded-full blur-[80px] -mr-48 -mt-48 transition-transform group-hover:scale-110"></div>
          <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-8 relative z-10">
@@ -144,8 +171,10 @@ const Dashboard: React.FC = () => {
             </button>
          </div>
       </div>
+      )}
 
       {/* KPI Grid */}
+      {viewPreferences.showKpiGrid && (
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <KpiCard 
           title="Total Sales" 
@@ -180,8 +209,10 @@ const Dashboard: React.FC = () => {
           color={lowStockCount > 0 ? "rose" : "amber"} 
         />
       </div>
+      )}
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        {viewPreferences.showAnalytics && (
         <div className="lg:col-span-2 bg-white p-6 rounded-xl border shadow-sm">
           <div className="flex items-center justify-between mb-6">
             <h3 className="text-lg font-semibold flex items-center gap-2">
@@ -221,8 +252,10 @@ const Dashboard: React.FC = () => {
             </ResponsiveContainer>
           </div>
         </div>
+        )}
 
-        <div className="space-y-6">
+        <div className={`space-y-6 ${!viewPreferences.showAnalytics ? 'lg:col-span-3' : ''}`}>
+          {viewPreferences.showConfig && (
           <div className="bg-white p-6 rounded-xl border shadow-sm">
             <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
               <Store className="w-5 h-5 text-blue-600" />
@@ -265,7 +298,9 @@ const Dashboard: React.FC = () => {
                 </div>
             </div>
           </div>
+          )}
 
+          {viewPreferences.showAlerts && (
           <div className="bg-white p-6 rounded-xl border shadow-sm">
             <div className="flex items-center justify-between mb-6">
               <h3 className="text-lg font-semibold flex items-center gap-2">
@@ -305,8 +340,58 @@ const Dashboard: React.FC = () => {
               )}
             </div>
           </div>
+          )}
         </div>
       </div>
+
+      {/* Customize View Modal */}
+      {isCustomizeModalOpen && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/80 backdrop-blur-md animate-in zoom-in duration-300">
+          <div className="bg-white rounded-[2.5rem] shadow-3xl w-full max-w-md overflow-hidden flex flex-col">
+            <div className="p-8 border-b bg-slate-50 flex items-center justify-between relative overflow-hidden shrink-0">
+              <div className="flex items-center gap-4 relative z-10">
+                <div className="w-12 h-12 bg-white text-slate-600 rounded-2xl flex items-center justify-center shadow-sm border border-slate-100">
+                   <Filter className="w-6 h-6" />
+                </div>
+                <div>
+                  <h3 className="text-xl font-black text-slate-900 tracking-tighter">Customize View</h3>
+                  <p className="text-slate-500 text-xs font-bold">Toggle dashboard widgets</p>
+                </div>
+              </div>
+              <button onClick={() => setIsCustomizeModalOpen(false)} className="text-slate-400 hover:text-slate-600 transition-colors relative z-10">
+                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
+              </button>
+            </div>
+            <div className="p-8 space-y-4">
+              <ToggleOption 
+                label="AI Insight Recommendation" 
+                checked={viewPreferences.showAiInsight} 
+                onChange={(v) => updatePreference('showAiInsight', v)} 
+              />
+              <ToggleOption 
+                label="KPI Grid (Sales, Profit, etc.)" 
+                checked={viewPreferences.showKpiGrid} 
+                onChange={(v) => updatePreference('showKpiGrid', v)} 
+              />
+              <ToggleOption 
+                label="Performance Analytics Chart" 
+                checked={viewPreferences.showAnalytics} 
+                onChange={(v) => updatePreference('showAnalytics', v)} 
+              />
+              <ToggleOption 
+                label="Shop Configuration" 
+                checked={viewPreferences.showConfig} 
+                onChange={(v) => updatePreference('showConfig', v)} 
+              />
+              <ToggleOption 
+                label="Inventory Alerts" 
+                checked={viewPreferences.showAlerts} 
+                onChange={(v) => updatePreference('showAlerts', v)} 
+              />
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
@@ -342,6 +427,17 @@ const KpiCard: React.FC<KpiCardProps> = ({ title, value, trend, trendUp, icon: I
       <div>
         <p className="text-slate-500 text-xs font-bold uppercase tracking-widest">{title}</p>
         <h4 className="text-2xl font-black text-slate-900 mt-1 tracking-tight">{value}</h4>
+      </div>
+    </div>
+  );
+};
+
+const ToggleOption: React.FC<{ label: string, checked: boolean, onChange: (v: boolean) => void }> = ({ label, checked, onChange }) => {
+  return (
+    <div className="flex items-center justify-between p-4 rounded-2xl border border-slate-100 bg-slate-50/50 hover:bg-slate-50 transition-colors cursor-pointer" onClick={() => onChange(!checked)}>
+      <span className="text-sm font-bold text-slate-700">{label}</span>
+      <div className={`w-12 h-6 rounded-full p-1 transition-colors ${checked ? 'bg-blue-600' : 'bg-slate-300'}`}>
+        <div className={`w-4 h-4 rounded-full bg-white shadow-sm transition-transform ${checked ? 'translate-x-6' : 'translate-x-0'}`}></div>
       </div>
     </div>
   );
