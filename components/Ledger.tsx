@@ -71,7 +71,7 @@ const Ledger: React.FC = () => {
       );
     }
 
-    return entries.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+    return entries.reverse().sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
   }, [ledger, selectedCustomerId, ledgerSearch]);
 
   const pagedLedger = useMemo(() => 

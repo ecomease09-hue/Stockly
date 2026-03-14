@@ -22,7 +22,10 @@ interface AppContextType {
   payments: Payment[];
   reminders: PaymentReminder[];
   isAuthenticated: boolean;
+  isAuthModalOpen: boolean;
   openAuth: () => void;
+  closeAuth: () => void;
+  loginWithCredentials: (email: string, name: string) => void;
   logout: () => void;
   updateUser: (updates: Partial<User>) => void;
   checkLimit: (type: 'products' | 'vendors' | 'customers') => { allowed: boolean; limit: number; current: number };
@@ -30,7 +33,7 @@ interface AppContextType {
   addProduct: (product: Omit<Product, 'id' | 'movements' | 'createdAt'>) => void;
   updateProduct: (product: Product, movementReason?: string) => void;
   deleteProduct: (id: string) => void;
-  addCustomer: (customer: Omit<Customer, 'id' | 'totalOutstanding'>) => void;
+  addCustomer: (customer: Omit<Customer, 'id' | 'totalOutstanding'>) => Customer;
   addVendor: (vendor: Omit<Vendor, 'id' | 'totalBalance'>) => void;
   updateVendor: (vendor: Vendor) => void;
   deleteVendor: (id: string) => void;
@@ -48,6 +51,7 @@ const AppContext = createContext<AppContextType | undefined>(undefined);
 export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
   const [hasHydrated, setHasHydrated] = useState(false);
   
   const [products, setProducts] = useState<Product[]>([]);
@@ -90,72 +94,81 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   }, [isAuthenticated, user?.id, hasHydrated, products, customers, vendors, invoices, ledger, vendorLedger, payments, reminders]);
 
   useEffect(() => {
-    if (typeof netlifyIdentity !== 'undefined') {
-      netlifyIdentity.init();
-
-      const handleLogin = (netlifyUser: any) => {
-        if (netlifyUser) {
-          const appUser: User = {
-            id: netlifyUser.id,
-            name: netlifyUser.user_metadata?.full_name || netlifyUser.email.split('@')[0],
-            email: netlifyUser.email,
-            shopName: localStorage.getItem(`shop_name_${netlifyUser.id}`) || 'New Business Terminal',
-            nextInvoiceNumber: parseInt(localStorage.getItem(`next_inv_${netlifyUser.id}`) || '1'),
-            invoicePrefix: localStorage.getItem(`inv_prefix_${netlifyUser.id}`) ?? 'INV-',
-            invoicePadding: parseInt(localStorage.getItem(`inv_padding_${netlifyUser.id}`) || '5'),
-            primaryColor: localStorage.getItem(`primary_color_${netlifyUser.id}`) || '#2563eb',
-            address: localStorage.getItem(`address_${netlifyUser.id}`) || '',
-            phone: localStorage.getItem(`phone_${netlifyUser.id}`) || '',
-            plan: (localStorage.getItem(`plan_${netlifyUser.id}`) as any) || 'free',
-            subscriptionStatus: (localStorage.getItem(`sub_status_${netlifyUser.id}`) as any) || 'inactive',
-            planExpiryDate: localStorage.getItem(`expiry_${netlifyUser.id}`) || undefined,
-          };
-
-          const storedDataRaw = localStorage.getItem(getStorageKey(netlifyUser.id));
-          if (storedDataRaw) {
-            try {
-              const d = JSON.parse(storedDataRaw);
-              setProducts(d.products || []);
-              setCustomers(d.customers || []);
-              setVendors(d.vendors || []);
-              setInvoices(d.invoices || []);
-              setLedger(d.ledger || []);
-              setVendorLedger(d.vendorLedger || []);
-              setPayments(d.payments || []);
-              setReminders(d.reminders || []);
-            } catch (err) {
-              console.error("Hydration failed", err);
-            }
-          }
-
-          setUser(appUser);
-          setIsAuthenticated(true);
-          setHasHydrated(true);
-          netlifyIdentity.close();
-        }
-      };
-
-      const handleLogout = () => {
-        setUser(null);
-        setIsAuthenticated(false);
-        resetInMemoryState();
-        netlifyIdentity.open();
-      };
-
-      netlifyIdentity.on('login', handleLogin);
-      netlifyIdentity.on('logout', handleLogout);
-      
-      const currentUser = netlifyIdentity.currentUser();
-      if (currentUser) {
-        handleLogin(currentUser);
-      } else {
-        netlifyIdentity.open();
-      }
+    // Check if user was already logged in (mock persistence)
+    const wasLoggedIn = localStorage.getItem('stockly_logged_in');
+    const savedUserId = localStorage.getItem('stockly_user_id');
+    const savedUserName = localStorage.getItem('stockly_user_name');
+    const savedUserEmail = localStorage.getItem('stockly_user_email');
+    
+    if (wasLoggedIn === 'true' && savedUserId && savedUserEmail) {
+      loginWithCredentials(savedUserEmail, savedUserName || 'User');
     }
   }, []);
 
-  const openAuth = () => netlifyIdentity?.open();
-  const logout = () => netlifyIdentity?.logout();
+  const openAuth = () => {
+    setIsAuthModalOpen(true);
+  };
+
+  const closeAuth = () => {
+    setIsAuthModalOpen(false);
+  };
+
+  const loginWithCredentials = (email: string, name: string) => {
+    // Generate a consistent ID based on email for demo purposes
+    const mockUserId = `user-${btoa(email).replace(/=/g, '')}`;
+    const appUser: User = {
+      id: mockUserId,
+      name: name || email.split('@')[0],
+      email: email,
+      shopName: localStorage.getItem(`shop_name_${mockUserId}`) || 'My Retail Shop',
+      nextInvoiceNumber: parseInt(localStorage.getItem(`next_inv_${mockUserId}`) || '1'),
+      invoicePrefix: localStorage.getItem(`inv_prefix_${mockUserId}`) ?? 'INV-',
+      invoicePadding: parseInt(localStorage.getItem(`inv_padding_${mockUserId}`) || '5'),
+      primaryColor: localStorage.getItem(`primary_color_${mockUserId}`) || '#2563eb',
+      address: localStorage.getItem(`address_${mockUserId}`) || '',
+      phone: localStorage.getItem(`phone_${mockUserId}`) || '',
+      plan: (localStorage.getItem(`plan_${mockUserId}`) as any) || 'premium',
+      subscriptionStatus: (localStorage.getItem(`sub_status_${mockUserId}`) as any) || 'active',
+      planExpiryDate: localStorage.getItem(`expiry_${mockUserId}`) || undefined,
+    };
+
+    const storedDataRaw = localStorage.getItem(getStorageKey(mockUserId));
+    if (storedDataRaw) {
+      try {
+        const d = JSON.parse(storedDataRaw);
+        setProducts(d.products || []);
+        setCustomers(d.customers || []);
+        setVendors(d.vendors || []);
+        setInvoices(d.invoices || []);
+        setLedger(d.ledger || []);
+        setVendorLedger(d.vendorLedger || []);
+        setPayments(d.payments || []);
+        setReminders(d.reminders || []);
+      } catch (err) {
+        console.error("Hydration failed", err);
+      }
+    }
+
+    setUser(appUser);
+    setIsAuthenticated(true);
+    setHasHydrated(true);
+    setIsAuthModalOpen(false);
+    
+    localStorage.setItem('stockly_logged_in', 'true');
+    localStorage.setItem('stockly_user_id', mockUserId);
+    localStorage.setItem('stockly_user_name', name);
+    localStorage.setItem('stockly_user_email', email);
+  };
+
+  const logout = () => {
+    setUser(null);
+    setIsAuthenticated(false);
+    resetInMemoryState();
+    localStorage.removeItem('stockly_logged_in');
+    localStorage.removeItem('stockly_user_id');
+    localStorage.removeItem('stockly_user_name');
+    localStorage.removeItem('stockly_user_email');
+  };
 
   const updateUser = (updates: Partial<User>) => {
     setUser(prev => {
@@ -211,24 +224,25 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const addVendorPayment = (pay: { vendorId: string, amount: number, method: string, date: string, note?: string }) => {
     const paymentId = Math.random().toString(36).substr(2, 9);
-    setVendors(prevVendors => {
-      const vendor = prevVendors.find(v => v.id === pay.vendorId);
-      const currentBalance = vendor?.totalBalance || 0;
-      const newBalance = currentBalance - pay.amount;
-      const newEntry: VendorLedgerEntry = {
-        id: paymentId,
-        vendorId: pay.vendorId,
-        date: pay.date,
-        refId: paymentId,
-        type: 'payment',
-        description: `Payment via ${pay.method}${pay.note ? `: ${pay.note}` : ''}`,
-        debit: pay.amount,
-        credit: 0,
-        balance: newBalance
-      };
-      setVendorLedger(prev => [...prev, newEntry]);
-      return prevVendors.map(v => v.id === pay.vendorId ? { ...v, totalBalance: newBalance } : v);
-    });
+    
+    const vendor = vendors.find(v => v.id === pay.vendorId);
+    const currentBalance = vendor?.totalBalance || 0;
+    const newBalance = currentBalance - pay.amount;
+    
+    const newEntry: VendorLedgerEntry = {
+      id: paymentId,
+      vendorId: pay.vendorId,
+      date: pay.date,
+      refId: paymentId,
+      type: 'payment',
+      description: `Payment via ${pay.method}${pay.note ? `: ${pay.note}` : ''}`,
+      debit: pay.amount,
+      credit: 0,
+      balance: newBalance
+    };
+    
+    setVendorLedger(prev => [...prev, newEntry]);
+    setVendors(prevVendors => prevVendors.map(v => v.id === pay.vendorId ? { ...v, totalBalance: newBalance } : v));
   };
 
   const addProduct = (p: Omit<Product, 'id' | 'movements' | 'createdAt'>) => {
@@ -236,37 +250,41 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const productId = Math.random().toString(36).substr(2, 9);
     const newMovement: StockMovement = { id: Math.random().toString(36).substr(2, 9), type: 'in', quantity: p.stockQuantity, date: now, reason: 'Initial Stock' };
     const newProduct: Product = { ...p, id: productId, createdAt: now, movements: [newMovement] };
+    
     if (p.vendorId && p.stockQuantity > 0) {
       const cost = p.purchasePrice * p.stockQuantity;
-      setVendors(prevVendors => {
-        const vendor = prevVendors.find(v => v.id === p.vendorId);
-        const newBalance = (vendor?.totalBalance || 0) + cost;
-        const newEntry: VendorLedgerEntry = { id: Math.random().toString(36).substr(2, 9), vendorId: p.vendorId!, date: now, refId: productId, type: 'purchase', description: `Initial Stock: ${p.name}`, debit: 0, credit: cost, balance: newBalance };
-        setVendorLedger(prev => [...prev, newEntry]);
-        return prevVendors.map(v => v.id === p.vendorId ? { ...v, totalBalance: newBalance } : v);
-      });
+      const vendor = vendors.find(v => v.id === p.vendorId);
+      const newBalance = (vendor?.totalBalance || 0) + cost;
+      
+      const newEntry: VendorLedgerEntry = { id: Math.random().toString(36).substr(2, 9), vendorId: p.vendorId!, date: now, refId: productId, type: 'purchase', description: `Initial Stock: ${p.name}`, debit: 0, credit: cost, balance: newBalance };
+      
+      setVendorLedger(prev => [...prev, newEntry]);
+      setVendors(prevVendors => prevVendors.map(v => v.id === p.vendorId ? { ...v, totalBalance: newBalance } : v));
     }
     setProducts(prev => [...prev, newProduct]);
   };
 
   const updateProduct = (p: Product, movementReason: string = 'Update') => {
+    const oldProduct = products.find(item => item.id === p.id);
+    const diff = oldProduct ? p.stockQuantity - oldProduct.stockQuantity : 0;
+    const now = new Date().toISOString();
+    
+    if (diff > 0 && p.vendorId) {
+      const cost = p.purchasePrice * diff;
+      const vendor = vendors.find(v => v.id === p.vendorId);
+      const newBalance = (vendor?.totalBalance || 0) + cost;
+      
+      const newEntry: VendorLedgerEntry = { id: Math.random().toString(36).substr(2, 9), vendorId: p.vendorId!, date: now, refId: `PUR-${p.sku}`, type: 'purchase', description: `Restock: ${p.name}`, debit: 0, credit: cost, balance: newBalance };
+      
+      setVendorLedger(prev => [...prev, newEntry]);
+      setVendors(prevVendors => prevVendors.map(v => v.id === p.vendorId ? { ...v, totalBalance: newBalance } : v));
+    }
+
     setProducts(prevProducts => prevProducts.map(item => {
       if (item.id === p.id) {
-        const diff = p.stockQuantity - item.stockQuantity;
         const movements = [...item.movements];
-        const now = new Date().toISOString();
         if (diff !== 0) {
           movements.push({ id: Math.random().toString(36).substr(2, 9), type: diff > 0 ? 'in' : 'out', quantity: Math.abs(diff), date: now, reason: movementReason });
-          if (diff > 0 && p.vendorId) {
-            const cost = p.purchasePrice * diff;
-            setVendors(prevVendors => {
-              const vendor = prevVendors.find(v => v.id === p.vendorId);
-              const newBalance = (vendor?.totalBalance || 0) + cost;
-              const newEntry: VendorLedgerEntry = { id: Math.random().toString(36).substr(2, 9), vendorId: p.vendorId!, date: now, refId: `PUR-${p.sku}`, type: 'purchase', description: `Restock: ${p.name}`, debit: 0, credit: cost, balance: newBalance };
-              setVendorLedger(prev => [...prev, newEntry]);
-              return prevVendors.map(v => v.id === p.vendorId ? { ...v, totalBalance: newBalance } : v);
-            });
-          }
         }
         return { ...p, movements };
       }
@@ -275,7 +293,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const deleteProduct = (id: string) => setProducts(prev => prev.filter(item => item.id !== id));
-  const addCustomer = (c: Omit<Customer, 'id' | 'totalOutstanding'>) => setCustomers(prev => [...prev, { ...c, id: Math.random().toString(36).substr(2, 9), totalOutstanding: 0 }]);
+  const addCustomer = (c: Omit<Customer, 'id' | 'totalOutstanding'>) => {
+    const newCustomer = { ...c, id: Math.random().toString(36).substr(2, 9), totalOutstanding: 0 };
+    setCustomers(prev => [...prev, newCustomer]);
+    return newCustomer;
+  };
 
   const createInvoice = (inv: Omit<Invoice, 'id' | 'invoiceNumber'>): Invoice => {
     // Robust numbering logic
@@ -311,15 +333,44 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setInvoices(prev => [...prev, newInvoice]);
     
     // Update Customer Ledger
-    const netDebt = newInvoice.total - newInvoice.paidAmount;
-    setCustomers(prevCustomers => {
-      const target = prevCustomers.find(c => c.id === newInvoice.customerId);
-      const currentOutstanding = target?.totalOutstanding || 0;
-      const newBalance = currentOutstanding + netDebt;
-      const newEntry: LedgerEntry = { id: Math.random().toString(36).substr(2, 9), customerId: newInvoice.customerId, date: newInvoice.date, refId: invoiceId, type: 'invoice', description: `Invoice ${invoiceNumber}`, debit: newInvoice.total, credit: newInvoice.paidAmount, balance: newBalance };
-      setLedger(prev => [...prev, newEntry]);
-      return prevCustomers.map(c => c.id === newInvoice.customerId ? { ...c, totalOutstanding: newBalance } : c);
+    const targetCustomer = customers.find(c => c.id === newInvoice.customerId);
+    const currentOutstanding = targetCustomer?.totalOutstanding || 0;
+    
+    const entries: LedgerEntry[] = [];
+    let currentBalance = currentOutstanding;
+    
+    // Invoice Entry
+    currentBalance += newInvoice.total;
+    entries.push({
+      id: Math.random().toString(36).substr(2, 9),
+      customerId: newInvoice.customerId,
+      date: newInvoice.date,
+      refId: invoiceId,
+      type: 'invoice',
+      description: `Invoice ${invoiceNumber}`,
+      debit: newInvoice.total,
+      credit: 0,
+      balance: currentBalance
     });
+    
+    // Payment Entry (if any)
+    if (newInvoice.paidAmount > 0) {
+      currentBalance -= newInvoice.paidAmount;
+      entries.push({
+        id: Math.random().toString(36).substr(2, 9),
+        customerId: newInvoice.customerId,
+        date: newInvoice.date,
+        refId: invoiceId,
+        type: 'payment',
+        description: `Payment for Invoice ${invoiceNumber}`,
+        debit: 0,
+        credit: newInvoice.paidAmount,
+        balance: currentBalance
+      });
+    }
+    
+    setLedger(prev => [...prev, ...entries]);
+    setCustomers(prevCustomers => prevCustomers.map(c => c.id === newInvoice.customerId ? { ...c, totalOutstanding: currentBalance } : c));
 
     // Advance sequence for next time
     updateUser({ nextInvoiceNumber: currentSeq + 1 });
@@ -330,13 +381,24 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const addPayment = (pay: Omit<Payment, 'id'>) => {
     const paymentId = Math.random().toString(36).substr(2, 9);
     setPayments(prev => [...prev, { ...pay, id: paymentId }]);
-    setCustomers(prevCustomers => {
-      const target = prevCustomers.find(c => c.id === pay.customerId);
-      const newBalance = (target?.totalOutstanding || 0) - pay.amount;
-      const newEntry: LedgerEntry = { id: Math.random().toString(36).substr(2, 9), customerId: pay.customerId, date: pay.date, refId: paymentId, type: 'payment', description: `Payment via ${pay.method}`, debit: 0, credit: pay.amount, balance: newBalance };
-      setLedger(prev => [...prev, newEntry]);
-      return prevCustomers.map(c => c.id === pay.customerId ? { ...c, totalOutstanding: newBalance } : c);
-    });
+    
+    const targetCustomer = customers.find(c => c.id === pay.customerId);
+    const newBalance = (targetCustomer?.totalOutstanding || 0) - pay.amount;
+    
+    const newEntry: LedgerEntry = { 
+      id: Math.random().toString(36).substr(2, 9), 
+      customerId: pay.customerId, 
+      date: pay.date, 
+      refId: paymentId, 
+      type: 'payment', 
+      description: `Payment via ${pay.method}`, 
+      debit: 0, 
+      credit: pay.amount, 
+      balance: newBalance 
+    };
+    
+    setLedger(prev => [...prev, newEntry]);
+    setCustomers(prevCustomers => prevCustomers.map(c => c.id === pay.customerId ? { ...c, totalOutstanding: newBalance } : c));
   };
 
   const addReminder = (r: Omit<PaymentReminder, 'id' | 'status' | 'createdAt'>) => setReminders(prev => [...prev, { ...r, id: Math.random().toString(36).substr(2, 9), status: 'pending', createdAt: new Date().toISOString() }]);
@@ -345,8 +407,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   return (
     <AppContext.Provider value={{
-      user, products, customers, vendors, invoices, ledger, vendorLedger, payments, reminders, isAuthenticated,
-      openAuth, logout, updateUser, checkLimit, upgradePlan,
+      user, products, customers, vendors, invoices, ledger, vendorLedger, payments, reminders, isAuthenticated, isAuthModalOpen,
+      openAuth, closeAuth, loginWithCredentials, logout, updateUser, checkLimit, upgradePlan,
       addProduct, updateProduct, deleteProduct, addCustomer, addVendor, updateVendor, deleteVendor, addVendorPayment,
       createInvoice, addPayment, addReminder, markReminderAsSent, deleteReminder, formatInvoiceNumber
     }}>

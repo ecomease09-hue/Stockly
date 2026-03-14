@@ -14,6 +14,7 @@ import Reports from './components/Reports';
 import UserDetails from './components/UserDetails';
 import Pricing from './components/Pricing';
 import LandingPage from './components/LandingPage';
+import AuthModal from './components/AuthModal';
 
 const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { isAuthenticated } = useApp();
@@ -26,6 +27,7 @@ const AppContent: React.FC = () => {
 
   return (
     <Router>
+      <AuthModal />
       <Routes>
         {/* Dynamic Root Route: Landing/Login if logged out, Dashboard if logged in */}
         <Route 

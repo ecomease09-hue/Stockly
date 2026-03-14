@@ -74,6 +74,7 @@ const Dashboard: React.FC = () => {
   const lowStockCount = lowStockProducts.length;
   
   const totalVendorPayables = vendors.reduce((sum, v) => sum + (v.totalBalance || 0), 0);
+  const totalCustomerReceivables = customers.reduce((sum, c) => sum + (c.totalOutstanding || 0), 0);
 
   const fetchAiInsight = async () => {
     if (products.length === 0) return;
@@ -175,7 +176,7 @@ const Dashboard: React.FC = () => {
 
       {/* KPI Grid */}
       {viewPreferences.showKpiGrid && (
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4">
         <KpiCard 
           title="Total Sales" 
           value={`Rs. ${totalSales.toLocaleString()}`} 
@@ -193,12 +194,28 @@ const Dashboard: React.FC = () => {
           color="emerald" 
         />
         <KpiCard 
+          title="Customer Dues" 
+          value={`Rs. ${totalCustomerReceivables.toLocaleString()}`} 
+          trend={totalCustomerReceivables > 0 ? "Pending Collection" : "All Clear"} 
+          trendUp={false} 
+          icon={UserPlus} 
+          color={totalCustomerReceivables > 0 ? "rose" : "emerald"} 
+        />
+        <KpiCard 
           title="Vendor Payables" 
           value={`Rs. ${totalVendorPayables.toLocaleString()}`} 
           trend={totalVendorPayables > 0 ? "Outstanding Debt" : "Clear Dues"} 
           trendUp={false} 
           icon={Truck} 
           color={totalVendorPayables > 0 ? "rose" : "blue"} 
+        />
+        <KpiCard 
+          title="Net Outstanding" 
+          value={`Rs. ${(totalCustomerReceivables - totalVendorPayables).toLocaleString()}`} 
+          trend={(totalCustomerReceivables - totalVendorPayables) >= 0 ? "Net Positive" : "Net Negative"} 
+          trendUp={(totalCustomerReceivables - totalVendorPayables) >= 0} 
+          icon={Wallet2} 
+          color={(totalCustomerReceivables - totalVendorPayables) >= 0 ? "emerald" : "rose"} 
         />
         <KpiCard 
           title="Low Stock SKUs" 

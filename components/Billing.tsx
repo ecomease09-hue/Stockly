@@ -35,7 +35,7 @@ import html2canvas from 'html2canvas';
 import { jsPDF } from 'jspdf';
 
 const Billing: React.FC = () => {
-  const { products, customers, createInvoice, invoices, user, formatInvoiceNumber } = useApp();
+  const { products, customers, createInvoice, invoices, user, formatInvoiceNumber, addCustomer } = useApp();
   
   // UI State
   const [viewMode, setViewMode] = useState<'terminal' | 'invoice'>('terminal');
@@ -135,12 +135,13 @@ const Billing: React.FC = () => {
   };
 
   const handleEnterInvoiceView = () => {
-    if (!selectedCustomerId || selectedItems.length === 0) {
-      setToast({ message: "Please select a customer and add items.", type: 'error' });
+    const customerName = selectedCustomerId.trim();
+    if (!customerName || selectedItems.length === 0) {
+      setToast({ message: "Please enter a customer name and add items.", type: 'error' });
       return;
     }
 
-    const customer = customers.find(c => c.id === selectedCustomerId);
+    let customer = customers.find(c => c.name.toLowerCase() === customerName.toLowerCase());
     
     const invoiceNumber = isManualId && customInvoiceId 
         ? customInvoiceId 
@@ -155,8 +156,8 @@ const Billing: React.FC = () => {
     const tempInvoice: Invoice = {
       id: 'preview',
       invoiceNumber,
-      customerId: selectedCustomerId,
-      customerName: customer?.name || 'Walk-in Customer',
+      customerId: customer ? customer.id : 'new',
+      customerName: customer ? customer.name : customerName,
       date: new Date().toISOString(),
       items: selectedItems,
       subtotal,
@@ -177,9 +178,17 @@ const Billing: React.FC = () => {
     setIsGenerating(true);
 
     try {
+      let finalCustomerId = currentInvoice.customerId;
+      let finalCustomerName = currentInvoice.customerName;
+
+      if (finalCustomerId === 'new') {
+        const newCustomer = addCustomer({ name: finalCustomerName, phone: '', address: '' });
+        finalCustomerId = newCustomer.id;
+      }
+
       const result = createInvoice({
-        customerId: currentInvoice.customerId,
-        customerName: currentInvoice.customerName,
+        customerId: finalCustomerId,
+        customerName: finalCustomerName,
         date: currentInvoice.date,
         items: currentInvoice.items,
         subtotal: currentInvoice.subtotal,
@@ -511,19 +520,27 @@ const Billing: React.FC = () => {
              )}
 
              <div>
-                <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3 flex items-center gap-2">
-                  <Eye className="w-3 h-3" /> Select Account
+                <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3 flex items-center justify-between gap-2">
+                  <span className="flex items-center gap-2"><Eye className="w-3 h-3" /> Select or Enter Customer</span>
+                  {customers.find(c => c.name.toLowerCase() === selectedCustomerId.trim().toLowerCase())?.totalOutstanding ? (
+                    <span className="text-rose-500 bg-rose-50 px-2 py-1 rounded-md">
+                      Due: Rs. {customers.find(c => c.name.toLowerCase() === selectedCustomerId.trim().toLowerCase())?.totalOutstanding.toLocaleString()}
+                    </span>
+                  ) : null}
                 </label>
-                <select 
+                <input 
+                  type="text"
+                  list="customer-list"
                   value={selectedCustomerId} 
                   onChange={(e) => setSelectedCustomerId(e.target.value)} 
-                  className="w-full px-5 py-4 border-2 rounded-2xl bg-slate-50 font-black text-slate-800 focus:ring-2 focus:ring-blue-500 outline-none appearance-none cursor-pointer border-slate-100 transition-all"
-                >
-                  <option value="">Choose Customer...</option>
+                  placeholder="Type customer name..."
+                  className="w-full px-5 py-4 border-2 rounded-2xl bg-slate-50 font-black text-slate-800 focus:ring-2 focus:ring-blue-500 outline-none border-slate-100 transition-all"
+                />
+                <datalist id="customer-list">
                   {customers.map(c => (
-                    <option key={c.id} value={c.id}>{c.name}</option>
+                    <option key={c.id} value={c.name} />
                   ))}
-                </select>
+                </datalist>
              </div>
 
              <div className="p-6 bg-blue-50/50 rounded-[2rem] border-2 border-blue-100/50 space-y-6">
@@ -532,11 +549,11 @@ const Billing: React.FC = () => {
                   <span className="text-[10px] font-black uppercase text-blue-600 tracking-widest">Settlement Option</span>
                 </div>
                 <div className="grid grid-cols-2 gap-3">
-                   <button onClick={() => setPaymentType('cash')} className={`flex flex-col items-center gap-2 py-5 rounded-2xl border-2 transition-all ${paymentType === 'cash' ? 'bg-blue-600 border-blue-600 text-white shadow-lg' : 'bg-white border-slate-100 text-slate-400 hover:border-blue-200'}`}>
+                   <button onClick={() => { setPaymentType('cash'); setPaidAmount(total); }} className={`flex flex-col items-center gap-2 py-5 rounded-2xl border-2 transition-all ${paymentType === 'cash' ? 'bg-blue-600 border-blue-600 text-white shadow-lg' : 'bg-white border-slate-100 text-slate-400 hover:border-blue-200'}`}>
                       <Banknote className="w-5 h-5" />
                       <span className="text-[10px] font-black uppercase">Direct</span>
                    </button>
-                   <button onClick={() => setPaymentType('credit')} className={`flex flex-col items-center gap-2 py-5 rounded-2xl border-2 transition-all ${paymentType === 'credit' ? 'bg-blue-600 border-blue-600 text-white shadow-lg' : 'bg-white border-slate-100 text-slate-400 hover:border-blue-200'}`}>
+                   <button onClick={() => { setPaymentType('credit'); setPaidAmount(0); }} className={`flex flex-col items-center gap-2 py-5 rounded-2xl border-2 transition-all ${paymentType === 'credit' ? 'bg-blue-600 border-blue-600 text-white shadow-lg' : 'bg-white border-slate-100 text-slate-400 hover:border-blue-200'}`}>
                       <CreditCard className="w-5 h-5" />
                       <span className="text-[10px] font-black uppercase">Credit</span>
                    </button>

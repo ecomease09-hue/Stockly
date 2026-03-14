@@ -56,7 +56,7 @@ const VendorLedger: React.FC = () => {
       );
     }
 
-    return entries.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+    return entries.reverse().sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
   }, [vendorLedger, selectedVendorId, ledgerSearch]);
 
   const pagedLedger = useMemo(() => 

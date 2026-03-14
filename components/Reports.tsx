@@ -22,7 +22,8 @@ import {
   LayoutGrid,
   Clock,
   ArrowRight,
-  Download
+  Download,
+  X
 } from 'lucide-react';
 import { 
   PieChart as RePieChart, 
@@ -45,6 +46,7 @@ const Reports: React.FC = () => {
 
   // Filter States
   const [activeView, setActiveView] = useState<'daily' | 'monthly'>('daily');
+  const [isProfitModalOpen, setIsProfitModalOpen] = useState(false);
 
   // CSV Export Utility
   const downloadCSV = (data: any[], headers: string[], filename: string) => {
@@ -145,7 +147,7 @@ const Reports: React.FC = () => {
 
   const totalProfit = useMemo(() => invoices.reduce((sum, inv) => sum + calculateInvoiceProfit(inv), 0), [invoices, products]);
   const inventoryAssetsValue = useMemo(() => products.reduce((sum, p) => sum + (p.purchasePrice * p.stockQuantity), 0), [products]);
-  const totalOutstanding = useMemo(() => customers.reduce((s, c) => s + c.totalOutstanding, 0), [customers]);
+  const totalOutstanding = useMemo(() => customers.reduce((s, c) => s + (c.totalOutstanding || 0), 0), [customers]);
 
   const handleExportPerformance = () => {
     const data = activeView === 'daily' ? dailyProfitData : monthlyProfitData;
@@ -157,6 +159,21 @@ const Reports: React.FC = () => {
     const headers = ['SKU', 'Name', 'Remaining', 'Cost Value', 'Retail Value', 'Potential Profit', 'Status'];
     downloadCSV(skuInventoryReport, headers, `${user?.shopName}_Inventory_Valuation`);
   };
+
+  const profitDetails = useMemo(() => {
+    return invoices.map(inv => {
+      const profit = calculateInvoiceProfit(inv);
+      return {
+        id: inv.id,
+        invoiceNumber: inv.invoiceNumber,
+        date: inv.date,
+        customerName: inv.customerName,
+        revenue: inv.total,
+        profit: profit,
+        margin: inv.total > 0 ? ((profit / inv.total) * 100).toFixed(1) : '0.0'
+      };
+    }).sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+  }, [invoices, products]);
 
   return (
     <div className="space-y-8 pb-20 animate-in fade-in duration-500">
@@ -189,14 +206,16 @@ const Reports: React.FC = () => {
 
       {/* KPI Cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 no-print">
-        <ReportSummaryCard 
-          title="Net Gross Profit" 
-          value={`Rs. ${totalProfit.toLocaleString()}`} 
-          icon={TrendingUp} 
-          color="emerald" 
-          description="Total realized earnings" 
-          trend="+12.4%"
-        />
+        <div onClick={() => setIsProfitModalOpen(true)} className="cursor-pointer">
+          <ReportSummaryCard 
+            title="Net Gross Profit" 
+            value={`Rs. ${totalProfit.toLocaleString()}`} 
+            icon={TrendingUp} 
+            color="emerald" 
+            description="Total realized earnings (Click for details)" 
+            trend="+12.4%"
+          />
+        </div>
         <ReportSummaryCard 
           title="Stock Assets" 
           value={`Rs. ${inventoryAssetsValue.toLocaleString()}`} 
@@ -409,6 +428,86 @@ const Reports: React.FC = () => {
           </div>
         )}
       </div>
+
+      {/* Profit Details Modal */}
+      {isProfitModalOpen && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
+          <div className="bg-white rounded-[2rem] shadow-2xl w-full max-w-4xl max-h-[90vh] flex flex-col overflow-hidden">
+            <div className="p-6 border-b flex items-center justify-between bg-slate-50">
+              <div>
+                <h3 className="text-2xl font-black text-slate-800 flex items-center gap-2">
+                  <TrendingUp className="w-6 h-6 text-emerald-500" /> Profit Details
+                </h3>
+                <p className="text-sm text-slate-500 font-medium mt-1">Breakdown of profit per invoice</p>
+              </div>
+              <button onClick={() => setIsProfitModalOpen(false)} className="text-slate-400 hover:text-slate-600 bg-white p-2 rounded-full shadow-sm">
+                <X className="w-6 h-6" />
+              </button>
+            </div>
+            <div className="flex-1 overflow-y-auto p-6">
+              {profitDetails.length === 0 ? (
+                <div className="text-center py-12 text-slate-400">
+                  <TrendingUp className="w-12 h-12 mx-auto mb-4 opacity-20" />
+                  <p>No invoices generated yet.</p>
+                </div>
+              ) : (
+                <table className="w-full text-left border-collapse">
+                  <thead className="bg-slate-50 sticky top-0 z-10">
+                    <tr>
+                      <th className="p-4 text-xs font-black text-slate-500 uppercase tracking-widest border-b">Date</th>
+                      <th className="p-4 text-xs font-black text-slate-500 uppercase tracking-widest border-b">Invoice #</th>
+                      <th className="p-4 text-xs font-black text-slate-500 uppercase tracking-widest border-b">Customer</th>
+                      <th className="p-4 text-xs font-black text-slate-500 uppercase tracking-widest border-b text-right">Revenue</th>
+                      <th className="p-4 text-xs font-black text-slate-500 uppercase tracking-widest border-b text-right">Profit</th>
+                      <th className="p-4 text-xs font-black text-slate-500 uppercase tracking-widest border-b text-right">Margin</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100">
+                    {profitDetails.map((detail) => (
+                      <tr key={detail.id} className="hover:bg-slate-50/50 transition-colors">
+                        <td className="p-4 text-sm text-slate-600 font-medium">
+                          {new Date(detail.date).toLocaleDateString()}
+                        </td>
+                        <td className="p-4 text-sm font-black text-slate-900">
+                          {detail.invoiceNumber}
+                        </td>
+                        <td className="p-4 text-sm font-bold text-slate-700">
+                          {detail.customerName}
+                        </td>
+                        <td className="p-4 text-sm font-black text-blue-600 text-right">
+                          Rs. {detail.revenue.toLocaleString()}
+                        </td>
+                        <td className="p-4 text-sm font-black text-emerald-600 text-right">
+                          Rs. {detail.profit.toLocaleString()}
+                        </td>
+                        <td className="p-4 text-sm font-bold text-slate-500 text-right">
+                          {detail.margin}%
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                  <tfoot className="bg-slate-50 sticky bottom-0 border-t-2 border-slate-200">
+                    <tr>
+                      <td colSpan={3} className="p-4 text-sm font-black text-slate-900 text-right uppercase tracking-widest">Total</td>
+                      <td className="p-4 text-base font-black text-blue-600 text-right">
+                        Rs. {profitDetails.reduce((sum, d) => sum + d.revenue, 0).toLocaleString()}
+                      </td>
+                      <td className="p-4 text-base font-black text-emerald-600 text-right">
+                        Rs. {profitDetails.reduce((sum, d) => sum + d.profit, 0).toLocaleString()}
+                      </td>
+                      <td className="p-4 text-sm font-bold text-slate-500 text-right">
+                        {profitDetails.reduce((sum, d) => sum + d.revenue, 0) > 0 
+                          ? ((profitDetails.reduce((sum, d) => sum + d.profit, 0) / profitDetails.reduce((sum, d) => sum + d.revenue, 0)) * 100).toFixed(1) 
+                          : '0.0'}%
+                      </td>
+                    </tr>
+                  </tfoot>
+                </table>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
